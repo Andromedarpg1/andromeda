@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Andromeda — Painel do Mestre</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700;900&family=Cinzel:wght@400;600;700&family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script src="firebase-config.js"></script>
+<style>
+:root{
+  --void:#0a0c16; --panel:#151a2c; --panel-2:#1b2138; --line:#2c3354;
+  --gold:#c9a227; --gold-soft:#e3c66b; --parchment:#e9e2cf; --parchment-dim:#a8a18c;
+  --mana-negra:#7b4fb5; --mana-rubra:#a13340; --mana-branca:#e8e2d0; --mana-azul:#4f8fc0;
+  --buff:#4f9d6e; --debuff:#b5524f;
+}
+*{box-sizing:border-box;}
+body{
+  margin:0;
+  background:radial-gradient(ellipse at 20% 0%, #1a2040 0%, transparent 50%),
+             radial-gradient(ellipse at 80% 100%, #1c1430 0%, transparent 50%), var(--void);
+  color:var(--parchment); font-family:'EB Garamond', serif; min-height:100vh; padding:0 0 60px;
+}
+.wrap{ max-width:1200px; margin:0 auto; padding:36px 20px;}
+header{ text-align:center; margin-bottom:30px;}
+h1{
+  font-family:'Cinzel Decorative', serif; font-weight:900; font-size:clamp(28px,5vw,44px);
+  letter-spacing:4px; margin:0;
+  background:linear-gradient(180deg,var(--gold-soft),var(--gold) 60%,#8a6a18);
+  -webkit-background-clip:text; background-clip:text; color:transparent;
+}
+header .sub{ font-family:'Cinzel',serif; letter-spacing:3px; text-transform:uppercase; font-size:12px; color:var(--parchment-dim); margin-top:6px;}
+.toolbar{ display:flex; justify-content:center; gap:10px; margin-top:18px; flex-wrap:wrap;}
+.toolbar a, .toolbar button{
+  font-family:'Cinzel',serif; font-size:11px; letter-spacing:1.5px; text-transform:uppercase;
+  background:var(--panel-2); color:var(--gold-soft); border:1px solid var(--line);
+  border-radius:4px; padding:9px 14px; cursor:pointer; text-decoration:none;
+}
+.toolbar a:hover, .toolbar button:hover{ border-color:var(--gold); }
+.empty-state{ text-align:center; color:var(--parchment-dim); font-style:italic; margin-top:60px; font-size:15px;}
+.grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:18px; margin-top:24px;}
+.card{
+  background:linear-gradient(180deg,var(--panel),var(--panel-2)); border:1px solid var(--line);
+  border-radius:6px; padding:18px; position:relative;
+}
+.card::before{ content:''; position:absolute; top:0; left:0; right:0; height:1px;
+  background:linear-gradient(90deg,transparent,rgba(201,162,39,0.5),transparent);}
+.card h2{ font-family:'Cinzel',serif; font-size:17px; color:var(--gold-soft); margin:0 0 2px; letter-spacing:1px;}
+.card .meta{ font-size:13px; color:var(--parchment-dim); margin-bottom:12px;}
+.statrow{ display:flex; gap:14px; margin-bottom:12px; flex-wrap:wrap;}
+.stat{ background:var(--void); border:1px solid var(--line); border-radius:4px; padding:8px 12px; text-align:center; flex:1; min-width:70px;}
+.stat .v{ font-family:'JetBrains Mono',monospace; font-size:20px; color:var(--gold-soft); font-weight:600;}
+.stat .l{ font-family:'Cinzel',serif; font-size:9px; letter-spacing:1px; text-transform:uppercase; color:var(--parchment-dim); margin-top:2px;}
+.mana-mini{ display:flex; flex-direction:column; gap:6px; margin-bottom:12px;}
+.mana-mini-row{ display:flex; align-items:center; gap:8px; font-size:11px; color:var(--parchment-dim); font-family:'JetBrains Mono',monospace;}
+.mana-mini-row .dot{ width:8px; height:8px; border-radius:50%; flex-shrink:0;}
+.mana-mini-track{ flex:1; height:6px; background:#0000004d; border-radius:4px; overflow:hidden; border:1px solid var(--line);}
+.mana-mini-fill{ height:100%; }
+.bd-tags{ display:flex; flex-wrap:wrap; gap:6px; margin-bottom:12px;}
+.bd-tag{ font-size:11px; padding:3px 8px; border-radius:10px; border:1px solid var(--line);}
+.bd-tag.buff{ color:var(--buff); border-color:var(--buff);}
+.bd-tag.debuff{ color:var(--debuff); border-color:var(--debuff);}
+.card a.open{
+  display:block; text-align:center; margin-top:8px; font-family:'Cinzel',serif; font-size:11px;
+  letter-spacing:1.5px; text-transform:uppercase; color:var(--gold-soft); border:1px solid var(--line);
+  border-radius:4px; padding:9px; text-decoration:none;
+}
+.card a.open:hover{ border-color:var(--gold); }
+.live-dot{ display:inline-block; width:7px; height:7px; border-radius:50%; background:var(--buff); margin-right:6px; box-shadow:0 0 6px var(--buff); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>PAINEL DO MESTRE</h1>
+    <div class="sub">Andromeda · RPG Medieval · visão geral, somente leitura</div>
+    <div class="toolbar">
+      <a href="index.html" target="_blank">Abrir uma ficha nova</a>
+      <button id="btn-refresh"><span class="live-dot"></span>Atualizando ao vivo</button>
+    </div>
+  </header>
+  <div id="content">
+    <div class="empty-state">Carregando fichas...</div>
+  </div>
+</div>
+
+<script>
+const MANA_TYPES = ['negra','rubra','branca','azul'];
+const MANA_LABELS = {negra:'Negra',rubra:'Rubra',branca:'Branca',azul:'Azul'};
+const MANA_COLOR = {negra:'#7b4fb5',rubra:'#a13340',branca:'#e8e2d0',azul:'#4f8fc0'};
+const RELIGIONS = {
+  haukenismo:{label:'Haukenismo', mult:{azul:1.5, branca:1.0, negra:0.7, rubra:1.0}},
+  danitunismo:{label:'Danitunismo', mult:{branca:1.5, negra:0.5, azul:1.0, rubra:1.0}},
+  althimos:{label:'Althimos', mult:{negra:1.4, azul:1.1, branca:0.4, rubra:1.0}},
+  belisianismo:{label:'Belisianismo', mult:{negra:1.8, branca:0.15, azul:0.6, rubra:1.0}},
+  nenhuma:{label:'Nenhuma', mult:{negra:1,branca:1,azul:1,rubra:1}}
+};
+const BASE_POOL = 200;
+
+function manaMax(ficha, tipo){
+  if(tipo==='rubra') return null;
+  if(tipo==='branca' && ficha.religiao==='haukenismo'){
+    return Math.round(manaMax(ficha,'azul')/2) + 20;
+  }
+  const rel = RELIGIONS[ficha.religiao] || RELIGIONS.nenhuma;
+  let mult = rel.mult[tipo] ?? 1;
+  if(ficha.religiao==='althimos' && tipo==='azul'){ mult = mult + (ficha.althimosVariance||0); }
+  return Math.round(BASE_POOL * mult);
+}
+function vida(ficha){
+  const c = (ficha.attrs && ficha.attrs.constituicao) || 0;
+  const e = (ficha.attrs && ficha.attrs.espirito) || 0;
+  return Math.floor((c+e)/2) + 10;
+}
+
+function cardHTML(key, f){
+  const religiaoLabel = (RELIGIONS[f.religiao]||{label:f.religiao||'—'}).label;
+  const manaRows = MANA_TYPES.map(t=>{
+    const max = manaMax(f, t);
+    const cur = (f.mana && f.mana[t] && f.mana[t].cur!=null) ? f.mana[t].cur : (t==='rubra'?0:max);
+    const pct = (t==='rubra') ? 100 : Math.max(0, Math.min(100, max? (cur/max)*100 : 0));
+    return `<div class="mana-mini-row">
+      <span class="dot" style="background:${MANA_COLOR[t]}"></span>
+      <span style="min-width:42px;">${MANA_LABELS[t]}</span>
+      <span class="mana-mini-track"><span class="mana-mini-fill" style="width:${pct}%;background:${MANA_COLOR[t]}"></span></span>
+      <span>${cur}${max!=null?'/'+max:''}</span>
+    </div>`;
+  }).join('');
+  const buffs = (f.buffs||[]).map(b=>`<span class="bd-tag buff">${b.nome}</span>`).join('');
+  const debuffs = (f.debuffs||[]).map(b=>`<span class="bd-tag debuff">${b.nome}</span>`).join('');
+  return `
+  <div class="card">
+    <h2>${f.nome||key}</h2>
+    <div class="meta">${[f.raca,f.classe,f.povo].filter(Boolean).join(' · ')||'sem raça/classe definidas'}</div>
+    <div class="statrow">
+      <div class="stat"><div class="v">${f.nivel||1}</div><div class="l">Nível</div></div>
+      <div class="stat"><div class="v">${vida(f)}</div><div class="l">Vida</div></div>
+      <div class="stat"><div class="v" style="font-size:13px;">${religiaoLabel}</div><div class="l">Religião</div></div>
+    </div>
+    <div class="mana-mini">${manaRows}</div>
+    ${(buffs||debuffs) ? `<div class="bd-tags">${buffs}${debuffs}</div>` : ''}
+    <a class="open" href="index.html?personagem=${encodeURIComponent(key)}" target="_blank">Abrir ficha completa</a>
+  </div>`;
+}
+
+function renderFichas(data){
+  const content = document.getElementById('content');
+  if(!data){
+    content.innerHTML = '<div class="empty-state">Nenhuma ficha foi criada ainda. Peça para os jogadores abrirem o link da ficha e escolherem um nome.</div>';
+    return;
+  }
+  const cards = Object.keys(data).sort().map(key=>cardHTML(key, data[key])).join('');
+  content.innerHTML = `<div class="grid">${cards}</div>`;
+}
+
+(function init(){
+  if(typeof firebase==='undefined' || typeof firebaseConfig==='undefined'){
+    document.getElementById('content').innerHTML = '<div class="empty-state">Firebase não configurado. Preencha o arquivo firebase-config.js.</div>';
+    return;
+  }
+  if(!firebase.apps.length){ firebase.initializeApp(firebaseConfig); }
+  const db = firebase.database();
+  db.ref('fichas').on('value', snap=>{ renderFichas(snap.val()); });
+})();
+</script>
+</body>
+</html>
