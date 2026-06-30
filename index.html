@@ -453,32 +453,23 @@ function flashSaved(){
 
 /* ---------- MANA: CÁLCULO ---------- */
 function manaMax(tipo){
-  if(tipo==='rubra') return null; // rubra não tem teto fixo por padrão (começa em 0, sem fonte definida)
-  // Regra especial do Haukenismo: Mana Branca = (Mana Azul / 2) + 20, sempre.
-  if(tipo==='branca' && state.religiao==='haukenismo'){
-    return Math.round(manaMax('azul')/2) + 20;
+  if(tipo === 'rubra') return null;
+
+  const espirito = state.attrs.espirito || 0;
+
+  let mana = 50 + (espirito * 15);
+  if(tipo === 'branca' && state.religiao === 'haukenismo'){
+    return Math.round(manaMax('azul') / 2) + 20;
   }
+
   const rel = RELIGIONS[state.religiao] || RELIGIONS.nenhuma;
   let mult = rel.mult[tipo] ?? 1;
-  if(state.religiao==='althimos' && tipo==='azul'){ mult = mult + state.althimosVariance; }
-  return Math.round(BASE_POOL * mult);
-}
-function vida(){
-  const c = state.attrs.constituicao||0, e = state.attrs.espirito||0;
-  return Math.floor((c+e)/2) + 10;
-}
-function renderVida(){
-  const el = document.getElementById('vida-valor');
-  if(el) el.textContent = vida();
-}
-function ensureManaInit(){
-  MANA_TYPES.forEach(t=>{
-    if(t==='rubra') return;
-    const max = manaMax(t);
-    if(state.mana[t].cur===null || state.mana[t].cur===undefined){
-      state.mana[t].cur = max;
-    }
-  });
+
+  if(state.religiao === 'althimos' && tipo === 'azul'){
+    mult += state.althimosVariance;
+  }
+
+  return Math.round(mana * mult);
 }
 
 /* ---------- RENDER: IDENTIDADE ---------- */
