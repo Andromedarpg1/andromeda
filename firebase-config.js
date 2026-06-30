@@ -13,11 +13,11 @@
 // ============================================================
 
 const firebaseConfig = {
-  apiKey: "COLE_AQUI_SUA_API_KEY",
-  authDomain: "COLE_AQUI_SEU_PROJETO.firebaseapp.com",
+  apiKey: "AIzaSyBGcKIbKciVK307J05g5pVpEiElJoxus_s",
+  authDomain: "andromedas-b81e3.firebaseapp.com",
   databaseURL: "https://COLE_AQUI_SEU_PROJETO-default-rtdb.firebaseio.com",
-  projectId: "COLE_AQUI_SEU_PROJETO",
-  storageBucket: "COLE_AQUI_SEU_PROJETO.appspot.com",
-  messagingSenderId: "COLE_AQUI",
-  appId: "COLE_AQUI"
+  projectId: "andromedas-b81e3",
+  storageBucket: "andromedas-b81e3.firebasestorage.app",
+  messagingSenderId: "358348920326",
+  appId: "1:358348920326:web:3049a9f901f2aad8af1587"
 };
