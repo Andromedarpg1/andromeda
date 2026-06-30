@@ -219,7 +219,7 @@ tr:last-child td{ border-bottom:none; }
       <path d="M50 18 L78 35 L78 65 L50 82 L22 65 L22 35 Z" stroke-opacity="0.35"/>
     </g></svg>
     <h1 id="titulo">ANDROMEDA</h1>
-    <div class="sub">Ficha de Personagem · RPG Medieval</div>
+    <div class="sub">Ficha de Personagem · RPG Do Paspaei</div>
     <div class="divider"><div class="ln"></div><div class="dot"></div><div class="ln"></div></div>
   </header>
 
@@ -455,8 +455,8 @@ function flashSaved(){
 function manaMax(tipo){
     if(tipo === "rubra") return null;
     const espirito = state.attrs.espirito || 0;
-    // 50 de mana base +15 por ponto de Espírito
-    let manaBase = 40 + (espirito * 5);
+    // 50 de mana base +15 por ponto de ma
+    let manaBase = 50 + (espirito * 5);
     // Regra especial do Haukenismo
     if(tipo === "branca" && state.religiao === "haukenismo"){
         return Math.round(manaMax("azul") / 2) + 20;
@@ -646,8 +646,14 @@ function renderMana(){
       <div class="mana-bar-track"><div class="mana-bar-fill" style="width:${pct}%"></div></div>
       <div class="mana-nums"><span>${cur}${max!==null ? ' / '+max : ''}</span><span>${t!=='rubra' ? 'x'+mult.toFixed(2) : 'especial'}</span></div>
       <div class="mana-actions">
-        <button class="small" data-action="dec" data-mana="${t}">-10</button>
-        <button class="small" data-action="inc" data-mana="${t}">+10</button>
+        <button class="small" data-action="dec10" data-mana="${t}">-10</button>
+        <button class="small" data-action="dec5" data-mana="${t}">-5</button>
+        <button class="small" data-action="dec1" data-mana="${t}">-1</button>
+
+        <button class="small" data-action="inc1" data-mana="${t}">+1</button>
+        <button class="small" data-action="inc5" data-mana="${t}">+5</button>
+        <button class="small" data-action="inc10" data-mana="${t}">+10</button>
+
         <button class="small" data-action="full" data-mana="${t}">Restaurar</button>
       </div>
     `;
@@ -657,9 +663,39 @@ function renderMana(){
     b.addEventListener('click', e=>{
       const t = e.target.dataset.mana;
       const max = manaMax(t);
-      if(e.target.dataset.action==='dec'){ state.mana[t].cur = Math.max(0, state.mana[t].cur-10); }
-      if(e.target.dataset.action==='inc'){ state.mana[t].cur = max!==null ? Math.min(max, state.mana[t].cur+10) : state.mana[t].cur+10; }
-      if(e.target.dataset.action==='full'){ state.mana[t].cur = max!==null ? max : state.mana[t].cur; }
+      if(e.target.dataset.action==='dec10'){
+          state.mana[t].cur = Math.max(0, state.mana[t].cur - 10);
+      }
+
+      if(e.target.dataset.action==='dec5'){
+          state.mana[t].cur = Math.max(0, state.mana[t].cur - 5);
+      }
+
+      if(e.target.dataset.action==='dec1'){
+          state.mana[t].cur = Math.max(0, state.mana[t].cur - 1);
+      }
+
+      if(e.target.dataset.action==='inc1'){
+          state.mana[t].cur = max !== null
+              ? Math.min(max, state.mana[t].cur + 1)
+              : state.mana[t].cur + 1;
+      }
+
+      if(e.target.dataset.action==='inc5'){
+          state.mana[t].cur = max !== null
+              ? Math.min(max, state.mana[t].cur + 5)
+              : state.mana[t].cur + 5;
+      }
+
+      if(e.target.dataset.action==='inc10'){
+          state.mana[t].cur = max !== null
+              ? Math.min(max, state.mana[t].cur + 10)
+              : state.mana[t].cur + 10;
+      }
+
+      if(e.target.dataset.action==='full'){
+          state.mana[t].cur = max !== null ? max : state.mana[t].cur;
+      }
       renderMana(); renderSpells(); scheduleSave();
     });
   });
