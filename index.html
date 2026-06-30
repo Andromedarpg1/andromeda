@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<title>AndromedaRPG — Ficha de Personagem</title>
+<title>Andromeda — Ficha de Personagem</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@700;900&family=Cinzel:wght@400;600;700&family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
@@ -219,7 +219,7 @@ tr:last-child td{ border-bottom:none; }
       <path d="M50 18 L78 35 L78 65 L50 82 L22 65 L22 35 Z" stroke-opacity="0.35"/>
     </g></svg>
     <h1 id="titulo">ANDROMEDA</h1>
-    <div class="sub">Ficha de Personagem · RPG do medieval do paspaei</div>
+    <div class="sub">Ficha de Personagem · RPG Medieval</div>
     <div class="divider"><div class="ln"></div><div class="dot"></div><div class="ln"></div></div>
   </header>
 
@@ -453,23 +453,67 @@ function flashSaved(){
 
 /* ---------- MANA: CÁLCULO ---------- */
 function manaMax(tipo){
-  if(tipo === 'rubra') return null;
+    if(tipo === "rubra") return null;
+    const espirito = state.attrs.espirito || 0;
+    // 50 de mana base +15 por ponto de Espírito
+    let manaBase = 70 + (espirito * 15);
+    // Regra especial do Haukenismo
+    if(tipo === "branca" && state.religiao === "haukenismo"){
+        return Math.round(manaMax("azul") / 2) + 20;
+    }
 
-  const espirito = state.attrs.espirito || 0;
+    let mult = 1;
 
-  let mana = 50 + (espirito * 15);
-  if(tipo === 'branca' && state.religiao === 'haukenismo'){
-    return Math.round(manaMax('azul') / 2) + 20;
-  }
+    switch(state.religiao){
 
-  const rel = RELIGIONS[state.religiao] || RELIGIONS.nenhuma;
-  let mult = rel.mult[tipo] ?? 1;
+        case "haukenismo":
+            if(tipo==="azul") mult=1.5;
+            if(tipo==="negra") mult=0.7;
+            break;
 
-  if(state.religiao === 'althimos' && tipo === 'azul'){
-    mult += state.althimosVariance;
-  }
+        case "danitunismo":
+            if(tipo==="branca") mult=1.5;
+            if(tipo==="negra") mult=0.5;
+            break;
 
-  return Math.round(mana * mult);
+        case "althimos":
+            if(tipo==="negra") mult=1.4;
+            if(tipo==="branca") mult=0.4;
+
+            if(tipo==="azul"){
+                mult = 1 + (state.althimosVariance || 0);
+            }
+
+            break;
+
+        case "belisianismo":
+            if(tipo==="negra") mult=1.8;
+            if(tipo==="branca") mult=0.15;
+            if(tipo==="azul") mult=0.6;
+            break;
+    }
+
+    return Math.round(manaBase * mult);
+
+}
+function vida(){
+    const c = state.attrs.constituicao || 0;
+    const e = state.attrs.espirito || 0;
+    const nivel = state.nivel || 1;
+    return Math.floor((c + e) / 2) + 10 + ((nivel - 1) * 9);
+}
+function renderVida(){
+  const el = document.getElementById('vida-valor');
+  if(el) el.textContent = vida();
+}
+function ensureManaInit(){
+  MANA_TYPES.forEach(t=>{
+    if(t==='rubra') return;
+    const max = manaMax(t);
+    if(state.mana[t].cur===null || state.mana[t].cur===undefined){
+      state.mana[t].cur = max;
+    }
+  });
 }
 
 /* ---------- RENDER: IDENTIDADE ---------- */
@@ -515,8 +559,22 @@ function renderAttrs(){
   grid.querySelectorAll('input.attr-value').forEach(inp=>{
     inp.addEventListener('change', e=>{
       const k = e.target.dataset.attr;
-      state.attrs[k] = parseInt(e.target.value)||0;
-      renderAttrs(); renderConstellation(); renderVida(); renderMana(); scheduleSave();
+      state.attrs[k] = parseInt(e.target.value) || 0;
+
+      // Se mudou Espírito, recalcula os máximos de mana
+      if(k === "espirito"){
+        MANA_TYPES.forEach(tipo=>{
+          if(tipo !== "rubra"){
+            state.mana[tipo].cur = null;
+          }
+        });
+      }
+
+      renderAttrs();
+      renderConstellation();
+      renderVida();
+      renderMana();
+      scheduleSave();
     });
   });
   grid.querySelectorAll('button[data-action="roll"]').forEach(b=>{
@@ -787,7 +845,7 @@ function renderAll(){
   renderAll();
   bindIdentityEvents();
   const sub = document.querySelector('header .sub');
-  if(sub) sub.textContent = `Ficha de Personagem · RPG do Paspaei · ${PERSONAGEM_KEY}`;
+  if(sub) sub.textContent = `Ficha de Personagem · RPG Medieval · ${PERSONAGEM_KEY}`;
 })();
 
 </script>
