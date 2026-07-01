@@ -223,7 +223,7 @@ tr:last-child td{ border-bottom:none; }
       <path d="M50 18 L78 35 L78 65 L50 82 L22 65 L22 35 Z" stroke-opacity="0.35"/>
     </g></svg>
     <h1 id="titulo">ANDROMEDA</h1>
-    <div class="sub">Ficha de Personagem · RPG Medieval do rafaei</div>
+    <div class="sub">Ficha de Personagem · RPG Medieval</div>
     <div class="divider"><div class="ln"></div><div class="dot"></div><div class="ln"></div></div>
   </header>
 
@@ -405,6 +405,7 @@ function defaultState(){
     althimosVariance: (Math.random()<0.5? -0.1: 0.1),
     attrs: Object.fromEntries(ATTRS.map(a=>[a, rollAttrBase()])),
     mana: { negra:{cur:null}, rubra:{cur:0}, branca:{cur:null}, azul:{cur:null} },
+    manaBonus: { negra:0, branca:0, azul:0 },
     vidaAtual: null,
     defesaBonus: 0,
     spells: [],
@@ -505,30 +506,35 @@ function flashSaved(){
 /* ---------- MANA: CÁLCULO ---------- */
 function manaMax(tipo){
   if(tipo==='rubra') return null; // rubra não tem teto fixo por padrão (começa em 0, sem fonte definida)
+  let base;
   // Regra especial do Haukenismo: Mana Branca = (Mana Azul / 2) + 20, sempre.
   if(tipo==='branca' && state.religiao==='haukenismo'){
-    return Math.round(manaMax('azul')/2) + 20;
+    base = Math.round(manaMax('azul')/2) + 20;
+  } else {
+    const rel = RELIGIONS[state.religiao] || RELIGIONS.nenhuma;
+    let mult = rel.mult[tipo] ?? 1;
+    if(state.religiao==='althimos' && tipo==='azul'){ mult = mult + state.althimosVariance; }
+    base = Math.round(manaBase() * mult);
   }
-  const rel = RELIGIONS[state.religiao] || RELIGIONS.nenhuma;
-  let mult = rel.mult[tipo] ?? 1;
-  if(state.religiao==='althimos' && tipo==='azul'){ mult = mult + state.althimosVariance; }
-  return Math.round(manaBase() * mult);
+  const bonus = (state.manaBonus && state.manaBonus[tipo]) || 0;
+  return base + bonus;
 }
 function vidaMax(){
-  const c = state.attrs.constituicao||0, e = state.attrs.espirito||0;
-  const nivel = state.nivel||1;
+  const c = Number(state.attrs.constituicao)||0, e = Number(state.attrs.espirito)||0;
+  const nivel = Number(state.nivel)||1;
   return Math.floor((c+e)/2) + 10 + 9*(nivel-1);
 }
 function defesaBase(){
-  return Math.floor((state.attrs.constituicao||0)/2);
+  return Math.floor((Number(state.attrs.constituicao)||0)/2);
 }
 function defesaTotal(){
-  return defesaBase() + (state.defesaBonus||0);
+  return defesaBase() + (Number(state.defesaBonus)||0);
 }
 function ensureVidaInit(){
   const max = vidaMax();
-  if(state.vidaAtual===null || state.vidaAtual===undefined){ state.vidaAtual = max; }
+  if(!Number.isFinite(state.vidaAtual)){ state.vidaAtual = max; }
   else if(state.vidaAtual > max){ state.vidaAtual = max; }
+  else if(state.vidaAtual < 0){ state.vidaAtual = 0; }
 }
 function renderVidaDefesa(){
   ensureVidaInit();
@@ -665,6 +671,7 @@ function renderMana(){
     const cur = state.mana[t].cur;
     const pct = (t==='rubra') ? 100 : Math.max(0, Math.min(100, (cur/max)*100));
     const mult = (RELIGIONS[state.religiao]||RELIGIONS.nenhuma).mult[t];
+    const bonus = (t!=='rubra') ? ((state.manaBonus&&state.manaBonus[t])||0) : 0;
     const card = document.createElement('div');
     card.className = `mana-card mana-${t}`;
     card.innerHTML = `
@@ -678,6 +685,11 @@ function renderMana(){
         <button class="small" data-action="adj" data-delta="5" data-mana="${t}">+5</button>
         <button class="small" data-action="full" data-mana="${t}">Restaurar</button>
       </div>
+      ${t!=='rubra' ? `
+      <div class="field" style="margin-top:10px;">
+        <label>Bônus (soma no máximo desta mana)</label>
+        <input type="number" value="${bonus}" data-mana-bonus="${t}">
+      </div>` : ''}
     `;
     grid.appendChild(card);
   });
@@ -693,6 +705,14 @@ function renderMana(){
         state.mana[t].cur = next;
       }
       if(e.target.dataset.action==='full'){ state.mana[t].cur = max!==null ? max : state.mana[t].cur; }
+      renderMana(); renderSpells(); scheduleSave();
+    });
+  });
+  grid.querySelectorAll('[data-mana-bonus]').forEach(inp=>{
+    inp.addEventListener('change', e=>{
+      const t = e.target.dataset.manaBonus;
+      if(!state.manaBonus) state.manaBonus = {negra:0,branca:0,azul:0};
+      state.manaBonus[t] = parseInt(e.target.value)||0;
       renderMana(); renderSpells(); scheduleSave();
     });
   });
@@ -850,7 +870,7 @@ function bindIdentityEvents(){
     state.vidaAtual = vidaMax();
     renderVidaDefesa(); scheduleSave();
   });
-  document.getElementById('defesa-bonus').addEventListener('input', e=>{
+  document.getElementById('defesa-bonus').addEventListener('change', e=>{
     state.defesaBonus = parseInt(e.target.value)||0;
     renderVidaDefesa(); scheduleSave();
   });
