@@ -235,7 +235,7 @@ tr:last-child td{ border-bottom:none; }
       <div class="field"><label>Raça</label><input id="i-raca" placeholder="ex: Humana, Elfa, Anã..."></div>
       <div class="field"><label>Classe</label><input id="i-classe" placeholder="ex: Guerreira, Maga..."></div>
       <div class="field"><label>Povo</label><input id="i-povo" placeholder="ex: Reino de Vael..."></div>
-      <div class="field"><label>Nível (1–15)</label><input id="i-nivel" type="number" min="1" max="15" value="1"></div>
+      <div class="field"><label>Nível</label><input id="i-nivel" type="number" min="1" value="1"></div>
       <div class="field">
         <label>Religião</label>
         <select id="i-religiao">
@@ -553,9 +553,7 @@ function renderVidaDefesa(){
   if(dbonus && document.activeElement!==dbonus) dbonus.value = state.defesaBonus||0;
 }
 function ensureManaInit(){
-  if(!state.mana) state.mana = {};
   MANA_TYPES.forEach(t=>{
-    if(!state.mana[t]) state.mana[t] = { cur: t==='rubra' ? 0 : null };
     if(t==='rubra') return;
     const max = manaMax(t);
     if(state.mana[t].cur===null || state.mana[t].cur===undefined){
@@ -811,18 +809,12 @@ function bindIdentityEvents(){
   document.getElementById('i-raca').addEventListener('input', e=>{ state.raca=e.target.value; scheduleSave(); });
   document.getElementById('i-classe').addEventListener('input', e=>{ state.classe=e.target.value; scheduleSave(); });
   document.getElementById('i-povo').addEventListener('input', e=>{ state.povo=e.target.value; scheduleSave(); });
-  document.getElementById('i-nivel').addEventListener('input', e=>{
-    let n = parseInt(e.target.value)||1;
-    n = Math.max(1, Math.min(15, n));
-    state.nivel = n;
-    e.target.value = n;
-    updateTurnMax(); renderSpells(); renderVidaDefesa(); scheduleSave();
-  });
+  document.getElementById('i-nivel').addEventListener('input', e=>{ state.nivel=parseInt(e.target.value)||1; updateTurnMax(); renderSpells(); renderVidaDefesa(); scheduleSave(); });
   document.getElementById('i-religiao').addEventListener('change', e=>{
     state.religiao = e.target.value;
     if(state.religiao==='althimos'){ state.althimosVariance = (Math.random()<0.5? -0.1: 0.1); }
-    // reseta a mana atual para o novo máximo (nunca grava null — o Firebase apaga chaves com valor null)
-    MANA_TYPES.forEach(t=>{ if(t!=='rubra'){ if(!state.mana[t]) state.mana[t]={}; state.mana[t].cur = manaMax(t); } });
+    // reseta a mana atual para o novo máximo
+    MANA_TYPES.forEach(t=>{ if(t!=='rubra') state.mana[t].cur=null; });
     document.getElementById('religion-note').textContent = (RELIGIONS[state.religiao]||RELIGIONS.nenhuma).note;
     renderMana(); renderSpells(); scheduleSave();
   });
