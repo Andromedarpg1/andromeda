@@ -140,6 +140,9 @@ button.small{ padding:5px 9px; font-size:10px; }
 .mana-rubra .mana-dot, .mana-rubra .mana-title{ color:var(--mana-rubra);}
 .mana-branca .mana-dot, .mana-branca .mana-title{ color:var(--mana-branca);}
 .mana-azul .mana-dot, .mana-azul .mana-title{ color:var(--mana-azul);}
+.mana-vida .mana-dot, .mana-vida .mana-title{ color:var(--buff);}
+.mana-vida .mana-bar-fill{ background:linear-gradient(90deg,#245c3a,var(--buff)); }
+.mana-defesa .mana-dot, .mana-defesa .mana-title{ color:var(--gold-soft);}
 .mana-bar-track{ width:100%; height:10px; background:#0000004d; border-radius:6px; margin:12px 0 8px; overflow:hidden; border:1px solid var(--line);}
 .mana-bar-fill{ height:100%; border-radius:6px; transition:width .25s ease;}
 .mana-negra .mana-bar-fill{ background:linear-gradient(90deg,var(--mana-negra-dim),var(--mana-negra)); }
@@ -220,7 +223,7 @@ tr:last-child td{ border-bottom:none; }
       <path d="M50 18 L78 35 L78 65 L50 82 L22 65 L22 35 Z" stroke-opacity="0.35"/>
     </g></svg>
     <h1 id="titulo">ANDROMEDA</h1>
-    <div class="sub">Ficha de Personagem · RPG Medieval</div>
+    <div class="sub">Ficha de Personagem · RPG Medieval do rafaei</div>
     <div class="divider"><div class="ln"></div><div class="dot"></div><div class="ln"></div></div>
   </header>
 
@@ -251,11 +254,32 @@ tr:last-child td{ border-bottom:none; }
   <section class="panel">
     <h2>Carta Estelar de Atributos</h2>
     <div class="constellation-box"><svg class="const" id="const-svg" viewBox="0 0 600 320"></svg></div>
-    <div style="display:flex;justify-content:center;margin-top:10px;">
-      <div class="attr-card" style="max-width:260px;text-align:center;">
-        <div class="attr-name">Vida</div>
-        <div style="font-family:'JetBrains Mono',monospace;font-size:38px;color:var(--gold-soft);margin-top:8px;" id="vida-valor">10</div>
-        <div style="font-size:12px;color:var(--parchment-dim);margin-top:4px;">(Constituição + Espírito) ÷ 2 + 10 + 9 por nível acima do 1º</div>
+  </section>
+
+  <!-- VIDA & DEFESA -->
+  <section class="panel">
+    <h2>Vida &amp; Defesa</h2>
+    <div class="mana-grid">
+      <div class="mana-card mana-vida">
+        <div class="mana-title"><span class="mana-dot"></span>Vida</div>
+        <div class="mana-bar-track"><div class="mana-bar-fill" id="vida-bar-fill"></div></div>
+        <div class="mana-nums"><span id="vida-nums">0 / 10</span><span style="font-style:italic;">(Const+Esp)÷2+10+9/nível</span></div>
+        <div class="mana-actions">
+          <button class="small" data-vida-adj="-5">-5</button>
+          <button class="small" data-vida-adj="-1">-1</button>
+          <button class="small" data-vida-adj="1">+1</button>
+          <button class="small" data-vida-adj="5">+5</button>
+          <button class="small" id="vida-full">Restaurar</button>
+        </div>
+      </div>
+      <div class="mana-card mana-defesa">
+        <div class="mana-title"><span class="mana-dot"></span>Defesa</div>
+        <div style="font-family:'JetBrains Mono',monospace;font-size:30px;color:var(--gold-soft);text-align:center;margin:8px 0 4px;" id="defesa-total">0</div>
+        <div class="mana-nums"><span>Base (Constituição ÷ 2): <b id="defesa-base">0</b></span></div>
+        <div class="field" style="margin-top:12px;">
+          <label>Bônus (armadura, escudo, magia...)</label>
+          <input id="defesa-bonus" type="number" value="0">
+        </div>
       </div>
     </div>
   </section>
@@ -381,6 +405,8 @@ function defaultState(){
     althimosVariance: (Math.random()<0.5? -0.1: 0.1),
     attrs: Object.fromEntries(ATTRS.map(a=>[a, rollAttrBase()])),
     mana: { negra:{cur:null}, rubra:{cur:0}, branca:{cur:null}, azul:{cur:null} },
+    vidaAtual: null,
+    defesaBonus: 0,
     spells: [],
     turnUsed: 0,
     buffs: [], debuffs: [],
@@ -488,14 +514,37 @@ function manaMax(tipo){
   if(state.religiao==='althimos' && tipo==='azul'){ mult = mult + state.althimosVariance; }
   return Math.round(manaBase() * mult);
 }
-function vida(){
+function vidaMax(){
   const c = state.attrs.constituicao||0, e = state.attrs.espirito||0;
   const nivel = state.nivel||1;
   return Math.floor((c+e)/2) + 10 + 9*(nivel-1);
 }
-function renderVida(){
-  const el = document.getElementById('vida-valor');
-  if(el) el.textContent = vida();
+function defesaBase(){
+  return Math.floor((state.attrs.constituicao||0)/2);
+}
+function defesaTotal(){
+  return defesaBase() + (state.defesaBonus||0);
+}
+function ensureVidaInit(){
+  const max = vidaMax();
+  if(state.vidaAtual===null || state.vidaAtual===undefined){ state.vidaAtual = max; }
+  else if(state.vidaAtual > max){ state.vidaAtual = max; }
+}
+function renderVidaDefesa(){
+  ensureVidaInit();
+  const max = vidaMax();
+  const cur = state.vidaAtual;
+  const pct = max>0 ? Math.max(0, Math.min(100, (cur/max)*100)) : 0;
+  const fill = document.getElementById('vida-bar-fill');
+  const nums = document.getElementById('vida-nums');
+  if(fill) fill.style.width = pct + '%';
+  if(nums) nums.textContent = `${cur} / ${max}`;
+  const db_ = document.getElementById('defesa-base');
+  const dt_ = document.getElementById('defesa-total');
+  const dbonus = document.getElementById('defesa-bonus');
+  if(db_) db_.textContent = defesaBase();
+  if(dt_) dt_.textContent = defesaTotal();
+  if(dbonus && document.activeElement!==dbonus) dbonus.value = state.defesaBonus||0;
 }
 function ensureManaInit(){
   MANA_TYPES.forEach(t=>{
@@ -551,7 +600,7 @@ function renderAttrs(){
     inp.addEventListener('change', e=>{
       const k = e.target.dataset.attr;
       state.attrs[k] = parseInt(e.target.value)||0;
-      renderAttrs(); renderConstellation(); renderVida(); renderMana(); scheduleSave();
+      renderAttrs(); renderConstellation(); renderVidaDefesa(); renderMana(); scheduleSave();
     });
   });
   grid.querySelectorAll('button[data-action="roll"]').forEach(b=>{
@@ -560,7 +609,7 @@ function renderAttrs(){
       const roll = d20();
       state.attrs[k] = roll + 4;
       document.getElementById(`log-${k}`).textContent = `Rolado: ${roll} + 4 = ${state.attrs[k]}`;
-      renderAttrs(); renderConstellation(); renderVida(); renderMana(); scheduleSave();
+      renderAttrs(); renderConstellation(); renderVidaDefesa(); renderMana(); scheduleSave();
     });
   });
   grid.querySelectorAll('button[data-action="test"]').forEach(b=>{
@@ -740,7 +789,7 @@ function bindIdentityEvents(){
   document.getElementById('i-raca').addEventListener('input', e=>{ state.raca=e.target.value; scheduleSave(); });
   document.getElementById('i-classe').addEventListener('input', e=>{ state.classe=e.target.value; scheduleSave(); });
   document.getElementById('i-povo').addEventListener('input', e=>{ state.povo=e.target.value; scheduleSave(); });
-  document.getElementById('i-nivel').addEventListener('input', e=>{ state.nivel=parseInt(e.target.value)||1; updateTurnMax(); renderSpells(); scheduleSave(); });
+  document.getElementById('i-nivel').addEventListener('input', e=>{ state.nivel=parseInt(e.target.value)||1; updateTurnMax(); renderSpells(); renderVidaDefesa(); scheduleSave(); });
   document.getElementById('i-religiao').addEventListener('change', e=>{
     state.religiao = e.target.value;
     if(state.religiao==='althimos'){ state.althimosVariance = (Math.random()<0.5? -0.1: 0.1); }
@@ -788,6 +837,23 @@ function bindIdentityEvents(){
       renderAll(); scheduleSave();
     }
   });
+  document.querySelectorAll('[data-vida-adj]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      ensureVidaInit();
+      const delta = parseInt(btn.dataset.vidaAdj)||0;
+      const max = vidaMax();
+      state.vidaAtual = Math.max(0, Math.min(max, state.vidaAtual + delta));
+      renderVidaDefesa(); scheduleSave();
+    });
+  });
+  document.getElementById('vida-full').addEventListener('click', ()=>{
+    state.vidaAtual = vidaMax();
+    renderVidaDefesa(); scheduleSave();
+  });
+  document.getElementById('defesa-bonus').addEventListener('input', e=>{
+    state.defesaBonus = parseInt(e.target.value)||0;
+    renderVidaDefesa(); scheduleSave();
+  });
 }
 
 /* ---------- STARFIELD DE FUNDO ---------- */
@@ -815,7 +881,7 @@ function initStarfield(){
 
 /* ---------- INIT ---------- */
 function renderAll(){
-  renderIdentity(); renderAttrs(); renderConstellation(); renderVida(); renderMana(); renderSpells(); renderBD(); renderInv();
+  renderIdentity(); renderAttrs(); renderConstellation(); renderVidaDefesa(); renderMana(); renderSpells(); renderBD(); renderInv();
 }
 (async function init(){
   if(!PERSONAGEM_KEY){
@@ -829,7 +895,7 @@ function renderAll(){
   renderAll();
   bindIdentityEvents();
   const sub = document.querySelector('header .sub');
-  if(sub) sub.textContent = `Ficha de Personagem · RPG Medieval do rafaei· ${PERSONAGEM_KEY}`;
+  if(sub) sub.textContent = `Ficha de Personagem · RPG Medieval · ${PERSONAGEM_KEY}`;
 })();
 
 </script>
