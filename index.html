@@ -539,16 +539,22 @@ async function saveState(){
     showFirebaseWarning('Sem conexão com o banco de dados — a última alteração NÃO foi salva');
     return;
   }
+
   try{
-    await db.ref(storagePath()).set(state);
+    await db.ref(storagePath()).update(state);
+
     clearFirebaseWarning();
     flashSaved();
+
   }catch(e){
     console.error('Erro ao salvar no Firebase', e);
+
     let motivo = e.message || String(e);
+
     if(motivo.toLowerCase().includes('permission')){
       motivo = 'Permissão negada pelas Regras do Realtime Database';
     }
+
     showFirebaseWarning('Não foi possível salvar: ' + motivo);
   }
 }
