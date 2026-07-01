@@ -553,7 +553,9 @@ function renderVidaDefesa(){
   if(dbonus && document.activeElement!==dbonus) dbonus.value = state.defesaBonus||0;
 }
 function ensureManaInit(){
+  if(!state.mana) state.mana = {};
   MANA_TYPES.forEach(t=>{
+    if(!state.mana[t]) state.mana[t] = { cur: t==='rubra' ? 0 : null };
     if(t==='rubra') return;
     const max = manaMax(t);
     if(state.mana[t].cur===null || state.mana[t].cur===undefined){
@@ -813,8 +815,8 @@ function bindIdentityEvents(){
   document.getElementById('i-religiao').addEventListener('change', e=>{
     state.religiao = e.target.value;
     if(state.religiao==='althimos'){ state.althimosVariance = (Math.random()<0.5? -0.1: 0.1); }
-    // reseta a mana atual para o novo máximo
-    MANA_TYPES.forEach(t=>{ if(t!=='rubra') state.mana[t].cur=null; });
+    // reseta a mana atual para o novo máximo (nunca grava null — o Firebase apaga chaves com valor null)
+    MANA_TYPES.forEach(t=>{ if(t!=='rubra'){ if(!state.mana[t]) state.mana[t]={}; state.mana[t].cur = manaMax(t); } });
     document.getElementById('religion-note').textContent = (RELIGIONS[state.religiao]||RELIGIONS.nenhuma).note;
     renderMana(); renderSpells(); scheduleSave();
   });
