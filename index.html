@@ -147,7 +147,8 @@ button.small{ padding:5px 9px; font-size:10px; }
 .mana-branca .mana-bar-fill{ background:linear-gradient(90deg,var(--mana-branca-dim),var(--mana-branca)); }
 .mana-azul .mana-bar-fill{ background:linear-gradient(90deg,var(--mana-azul-dim),var(--mana-azul)); }
 .mana-nums{ font-family:'JetBrains Mono',monospace; font-size:13px; color:var(--parchment-dim); display:flex; justify-content:space-between;}
-.mana-actions{ display:flex; gap:8px; margin-top:10px;}
+.mana-actions{ display:flex; gap:6px; margin-top:10px; flex-wrap:wrap;}
+.mana-actions button{ flex:1; min-width:38px; padding:8px 4px;}
 .mana-mult{ font-size:11px; color:var(--parchment-dim); margin-top:8px; font-style:italic;}
 
 /* SPELLS */
@@ -219,7 +220,7 @@ tr:last-child td{ border-bottom:none; }
       <path d="M50 18 L78 35 L78 65 L50 82 L22 65 L22 35 Z" stroke-opacity="0.35"/>
     </g></svg>
     <h1 id="titulo">ANDROMEDA</h1>
-    <div class="sub">Ficha de Personagem · RPG Do Paspaei</div>
+    <div class="sub">Ficha de Personagem · RPG Medieval</div>
     <div class="divider"><div class="ln"></div><div class="dot"></div><div class="ln"></div></div>
   </header>
 
@@ -254,7 +255,7 @@ tr:last-child td{ border-bottom:none; }
       <div class="attr-card" style="max-width:260px;text-align:center;">
         <div class="attr-name">Vida</div>
         <div style="font-family:'JetBrains Mono',monospace;font-size:38px;color:var(--gold-soft);margin-top:8px;" id="vida-valor">10</div>
-        <div style="font-size:12px;color:var(--parchment-dim);margin-top:4px;">(Constituição + Espírito) ÷ 2 + 10</div>
+        <div style="font-size:12px;color:var(--parchment-dim);margin-top:4px;">(Constituição + Espírito) ÷ 2 + 10 + 9 por nível acima do 1º</div>
       </div>
     </div>
   </section>
@@ -271,6 +272,9 @@ tr:last-child td{ border-bottom:none; }
   <!-- MANA -->
   <section class="panel">
     <h2>Reservas de Mana</h2>
+    <p style="font-size:13px;color:var(--parchment-dim);margin-top:-8px;">
+      Base por tipo (antes da religião): 50 + 5 por ponto de Espírito
+    </p>
     <div class="mana-grid" id="mana-grid"></div>
   </section>
 
@@ -363,7 +367,11 @@ const RELIGIONS = {
   nenhuma:{label:'Nenhuma', mult:{negra:1,branca:1,azul:1,rubra:1}, note:'Sem fé declarada — reservas de mana em seus valores-base, sem favorecimentos.'}
 };
 
-const BASE_POOL = 200; // base por tipo (negra/branca/azul) — permite ~4 magias de 50 de custo
+function manaBase(){
+  // Base de mana escala com Espírito: 50 + 5 por ponto de Espírito.
+  const espirito = (state.attrs && state.attrs.espirito) || 0;
+  return 50 + espirito*5;
+}
 
 let state = null;
 
@@ -413,14 +421,31 @@ let PERSONAGEM_KEY = getPersonagemKey();
 
 /* ---------- PERSISTÊNCIA (Firebase Realtime Database) ---------- */
 let db = null;
+function showFirebaseWarning(msg){
+  const el = document.createElement('div');
+  el.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:60;background:#5a2020;color:#f5e2d8;font-family:EB Garamond,serif;font-size:14px;text-align:center;padding:10px 16px;border-bottom:1px solid #8a3a3a;';
+  el.textContent = '⚠ ' + msg + ' — a ficha funciona, mas as alterações não vão salvar até isso ser corrigido.';
+  document.body.prepend(el);
+}
 function initFirebase(){
-  if(typeof firebase==='undefined' || typeof firebaseConfig==='undefined'){
-    console.error('Firebase não configurado. Preencha firebase-config.js');
+  try{
+    if(typeof firebase==='undefined' || typeof firebaseConfig==='undefined'){
+      showFirebaseWarning('Firebase não encontrado (verifique se firebase-config.js foi enviado pro GitHub)');
+      return false;
+    }
+    if(firebaseConfig.databaseURL && firebaseConfig.databaseURL.includes('COLE_AQUI')){
+      showFirebaseWarning('firebase-config.js ainda tem valores de exemplo (COLE_AQUI...)');
+      return false;
+    }
+    if(!firebase.apps.length){ firebase.initializeApp(firebaseConfig); }
+    db = firebase.database();
+    return true;
+  }catch(e){
+    console.error('Erro ao iniciar o Firebase:', e);
+    showFirebaseWarning('Não foi possível conectar ao banco de dados (' + (e.message||e) + ')');
+    db = null;
     return false;
   }
-  if(!firebase.apps.length){ firebase.initializeApp(firebaseConfig); }
-  db = firebase.database();
-  return true;
 }
 function storagePath(){ return 'fichas/' + PERSONAGEM_KEY; }
 let saveTimer=null;
@@ -453,54 +478,20 @@ function flashSaved(){
 
 /* ---------- MANA: CÁLCULO ---------- */
 function manaMax(tipo){
-    if(tipo === "rubra") return null;
-    const espirito = state.attrs.espirito || 0;
-    // 50 de mana base +15 por ponto de ma
-    let manaBase = 50 + (espirito * 4);
-    // Regra especial do Haukenismo
-    if(tipo === "branca" && state.religiao === "haukenismo"){
-        return Math.round(manaMax("azul") / 2) + 20;
-    }
-
-    let mult = 1;
-
-    switch(state.religiao){
-
-        case "haukenismo":
-            if(tipo==="azul") mult=1.5;
-            if(tipo==="negra") mult=0.7;
-            break;
-
-        case "danitunismo":
-            if(tipo==="branca") mult=1.5;
-            if(tipo==="negra") mult=0.5;
-            break;
-
-        case "althimos":
-            if(tipo==="negra") mult=1.4;
-            if(tipo==="branca") mult=0.4;
-
-            if(tipo==="azul"){
-                mult = 1 + (state.althimosVariance || 0);
-            }
-
-            break;
-
-        case "belisianismo":
-            if(tipo==="negra") mult=1.8;
-            if(tipo==="branca") mult=0.15;
-            if(tipo==="azul") mult=0.6;
-            break;
-    }
-
-    return Math.round(manaBase * mult);
-
+  if(tipo==='rubra') return null; // rubra não tem teto fixo por padrão (começa em 0, sem fonte definida)
+  // Regra especial do Haukenismo: Mana Branca = (Mana Azul / 2) + 20, sempre.
+  if(tipo==='branca' && state.religiao==='haukenismo'){
+    return Math.round(manaMax('azul')/2) + 20;
+  }
+  const rel = RELIGIONS[state.religiao] || RELIGIONS.nenhuma;
+  let mult = rel.mult[tipo] ?? 1;
+  if(state.religiao==='althimos' && tipo==='azul'){ mult = mult + state.althimosVariance; }
+  return Math.round(manaBase() * mult);
 }
 function vida(){
-    const c = state.attrs.constituicao || 0;
-    const e = state.attrs.espirito || 0;
-    const nivel = state.nivel || 1;
-    return Math.floor((c + e) / 2) + 10 + ((nivel - 1) * 9);
+  const c = state.attrs.constituicao||0, e = state.attrs.espirito||0;
+  const nivel = state.nivel||1;
+  return Math.floor((c+e)/2) + 10 + 9*(nivel-1);
 }
 function renderVida(){
   const el = document.getElementById('vida-valor');
@@ -559,22 +550,8 @@ function renderAttrs(){
   grid.querySelectorAll('input.attr-value').forEach(inp=>{
     inp.addEventListener('change', e=>{
       const k = e.target.dataset.attr;
-      state.attrs[k] = parseInt(e.target.value) || 0;
-
-      // Se mudou Espírito, recalcula os máximos de mana
-      if(k === "espirito"){
-        MANA_TYPES.forEach(tipo=>{
-          if(tipo !== "rubra"){
-            state.mana[tipo].cur = null;
-          }
-        });
-      }
-
-      renderAttrs();
-      renderConstellation();
-      renderVida();
-      renderMana();
-      scheduleSave();
+      state.attrs[k] = parseInt(e.target.value)||0;
+      renderAttrs(); renderConstellation(); renderVida(); renderMana(); scheduleSave();
     });
   });
   grid.querySelectorAll('button[data-action="roll"]').forEach(b=>{
@@ -646,14 +623,10 @@ function renderMana(){
       <div class="mana-bar-track"><div class="mana-bar-fill" style="width:${pct}%"></div></div>
       <div class="mana-nums"><span>${cur}${max!==null ? ' / '+max : ''}</span><span>${t!=='rubra' ? 'x'+mult.toFixed(2) : 'especial'}</span></div>
       <div class="mana-actions">
-        <button class="small" data-action="dec10" data-mana="${t}">-10</button>
-        <button class="small" data-action="dec5" data-mana="${t}">-5</button>
-        <button class="small" data-action="dec1" data-mana="${t}">-1</button>
-
-        <button class="small" data-action="inc1" data-mana="${t}">+1</button>
-        <button class="small" data-action="inc5" data-mana="${t}">+5</button>
-        <button class="small" data-action="inc10" data-mana="${t}">+10</button>
-
+        <button class="small" data-action="adj" data-delta="-5" data-mana="${t}">-5</button>
+        <button class="small" data-action="adj" data-delta="-1" data-mana="${t}">-1</button>
+        <button class="small" data-action="adj" data-delta="1" data-mana="${t}">+1</button>
+        <button class="small" data-action="adj" data-delta="5" data-mana="${t}">+5</button>
         <button class="small" data-action="full" data-mana="${t}">Restaurar</button>
       </div>
     `;
@@ -663,39 +636,14 @@ function renderMana(){
     b.addEventListener('click', e=>{
       const t = e.target.dataset.mana;
       const max = manaMax(t);
-      if(e.target.dataset.action==='dec10'){
-          state.mana[t].cur = Math.max(0, state.mana[t].cur - 10);
+      if(e.target.dataset.action==='adj'){
+        const delta = parseInt(e.target.dataset.delta)||0;
+        let next = (state.mana[t].cur||0) + delta;
+        next = Math.max(0, next);
+        if(max!==null) next = Math.min(max, next);
+        state.mana[t].cur = next;
       }
-
-      if(e.target.dataset.action==='dec5'){
-          state.mana[t].cur = Math.max(0, state.mana[t].cur - 5);
-      }
-
-      if(e.target.dataset.action==='dec1'){
-          state.mana[t].cur = Math.max(0, state.mana[t].cur - 1);
-      }
-
-      if(e.target.dataset.action==='inc1'){
-          state.mana[t].cur = max !== null
-              ? Math.min(max, state.mana[t].cur + 1)
-              : state.mana[t].cur + 1;
-      }
-
-      if(e.target.dataset.action==='inc5'){
-          state.mana[t].cur = max !== null
-              ? Math.min(max, state.mana[t].cur + 5)
-              : state.mana[t].cur + 5;
-      }
-
-      if(e.target.dataset.action==='inc10'){
-          state.mana[t].cur = max !== null
-              ? Math.min(max, state.mana[t].cur + 10)
-              : state.mana[t].cur + 10;
-      }
-
-      if(e.target.dataset.action==='full'){
-          state.mana[t].cur = max !== null ? max : state.mana[t].cur;
-      }
+      if(e.target.dataset.action==='full'){ state.mana[t].cur = max!==null ? max : state.mana[t].cur; }
       renderMana(); renderSpells(); scheduleSave();
     });
   });
@@ -881,7 +829,7 @@ function renderAll(){
   renderAll();
   bindIdentityEvents();
   const sub = document.querySelector('header .sub');
-  if(sub) sub.textContent = `Ficha de Personagem · RPG Medieval · ${PERSONAGEM_KEY}`;
+  if(sub) sub.textContent = `Ficha de Personagem · RPG Medieval do rafaei· ${PERSONAGEM_KEY}`;
 })();
 
 </script>
