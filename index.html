@@ -223,7 +223,7 @@ tr:last-child td{ border-bottom:none; }
       <path d="M50 18 L78 35 L78 65 L50 82 L22 65 L22 35 Z" stroke-opacity="0.35"/>
     </g></svg>
     <h1 id="titulo">ANDROMEDA</h1>
-    <div class="sub">Ficha de Personagem · RPG Medieval do Rafaei</div>
+    <div class="sub">Ficha de Personagem · RPG Medieval</div>
     <div class="divider"><div class="ln"></div><div class="dot"></div><div class="ln"></div></div>
   </header>
 
@@ -235,7 +235,7 @@ tr:last-child td{ border-bottom:none; }
       <div class="field"><label>Raça</label><input id="i-raca" placeholder="ex: Humana, Elfa, Anã..."></div>
       <div class="field"><label>Classe</label><input id="i-classe" placeholder="ex: Guerreira, Maga..."></div>
       <div class="field"><label>Povo</label><input id="i-povo" placeholder="ex: Reino de Vael..."></div>
-      <div class="field"><label>Nível</label><input id="i-nivel" type="number" min="1" value="1"></div>
+      <div class="field"><label>Nível (1–15)</label><input id="i-nivel" type="number" min="1" max="15" value="1"></div>
       <div class="field">
         <label>Religião</label>
         <select id="i-religiao">
@@ -261,9 +261,18 @@ tr:last-child td{ border-bottom:none; }
     <h2>Vida &amp; Defesa</h2>
     <div class="mana-grid">
       <div class="mana-card mana-vida">
-        <div class="mana-title"><span class="mana-dot"></span>Vida</div>
+        <div class="mana-title"><span class="mana-dot"></span>Vida (manual)</div>
         <div class="mana-bar-track"><div class="mana-bar-fill" id="vida-bar-fill"></div></div>
-        <div class="mana-nums"><span id="vida-nums">0 / 10</span><span style="font-style:italic;">(Const+Esp)÷2+10+9/nível</span></div>
+        <div style="display:flex;gap:10px;margin-top:10px;">
+          <div class="field" style="flex:1;">
+            <label>Atual</label>
+            <input id="vida-atual-input" type="number" value="10">
+          </div>
+          <div class="field" style="flex:1;">
+            <label>Máxima</label>
+            <input id="vida-max-input" type="number" value="10">
+          </div>
+        </div>
         <div class="mana-actions">
           <button class="small" data-vida-adj="-5">-5</button>
           <button class="small" data-vida-adj="-1">-1</button>
@@ -407,6 +416,7 @@ function defaultState(){
     mana: { negra:{cur:null}, rubra:{cur:0}, branca:{cur:null}, azul:{cur:null} },
     manaBonus: { negra:0, branca:0, azul:0 },
     vidaAtual: null,
+    vidaMax: 10,
     defesaBonus: 0,
     spells: [],
     turnUsed: 0,
@@ -519,11 +529,6 @@ function manaMax(tipo){
   const bonus = (state.manaBonus && state.manaBonus[tipo]) || 0;
   return base + bonus;
 }
-function vidaMax(){
-  const c = Number(state.attrs.constituicao)||0, e = Number(state.attrs.espirito)||0;
-  const nivel = Number(state.nivel)||1;
-  return Math.floor((c+e)/2) + 10 + 9*(nivel-1);
-}
 function defesaBase(){
   return Math.floor((Number(state.attrs.constituicao)||0)/2);
 }
@@ -531,20 +536,22 @@ function defesaTotal(){
   return defesaBase() + (Number(state.defesaBonus)||0);
 }
 function ensureVidaInit(){
-  const max = vidaMax();
-  if(!Number.isFinite(state.vidaAtual)){ state.vidaAtual = max; }
-  else if(state.vidaAtual > max){ state.vidaAtual = max; }
-  else if(state.vidaAtual < 0){ state.vidaAtual = 0; }
+  if(!Number.isFinite(state.vidaMax)){ state.vidaMax = 10; }
+  if(!Number.isFinite(state.vidaAtual)){ state.vidaAtual = state.vidaMax; }
+  if(state.vidaAtual > state.vidaMax){ state.vidaAtual = state.vidaMax; }
+  if(state.vidaAtual < 0){ state.vidaAtual = 0; }
 }
 function renderVidaDefesa(){
   ensureVidaInit();
-  const max = vidaMax();
+  const max = state.vidaMax;
   const cur = state.vidaAtual;
   const pct = max>0 ? Math.max(0, Math.min(100, (cur/max)*100)) : 0;
   const fill = document.getElementById('vida-bar-fill');
-  const nums = document.getElementById('vida-nums');
+  const curInput = document.getElementById('vida-atual-input');
+  const maxInput = document.getElementById('vida-max-input');
   if(fill) fill.style.width = pct + '%';
-  if(nums) nums.textContent = `${cur} / ${max}`;
+  if(curInput && document.activeElement!==curInput) curInput.value = cur;
+  if(maxInput && document.activeElement!==maxInput) maxInput.value = max;
   const db_ = document.getElementById('defesa-base');
   const dt_ = document.getElementById('defesa-total');
   const dbonus = document.getElementById('defesa-bonus');
@@ -553,7 +560,9 @@ function renderVidaDefesa(){
   if(dbonus && document.activeElement!==dbonus) dbonus.value = state.defesaBonus||0;
 }
 function ensureManaInit(){
+  if(!state.mana) state.mana = {};
   MANA_TYPES.forEach(t=>{
+    if(!state.mana[t]) state.mana[t] = { cur: t==='rubra' ? 0 : null };
     if(t==='rubra') return;
     const max = manaMax(t);
     if(state.mana[t].cur===null || state.mana[t].cur===undefined){
@@ -809,12 +818,18 @@ function bindIdentityEvents(){
   document.getElementById('i-raca').addEventListener('input', e=>{ state.raca=e.target.value; scheduleSave(); });
   document.getElementById('i-classe').addEventListener('input', e=>{ state.classe=e.target.value; scheduleSave(); });
   document.getElementById('i-povo').addEventListener('input', e=>{ state.povo=e.target.value; scheduleSave(); });
-  document.getElementById('i-nivel').addEventListener('input', e=>{ state.nivel=parseInt(e.target.value)||1; updateTurnMax(); renderSpells(); renderVidaDefesa(); scheduleSave(); });
+  document.getElementById('i-nivel').addEventListener('input', e=>{
+    let n = parseInt(e.target.value)||1;
+    n = Math.max(1, Math.min(15, n));
+    state.nivel = n;
+    e.target.value = n;
+    updateTurnMax(); renderSpells(); renderVidaDefesa(); scheduleSave();
+  });
   document.getElementById('i-religiao').addEventListener('change', e=>{
     state.religiao = e.target.value;
     if(state.religiao==='althimos'){ state.althimosVariance = (Math.random()<0.5? -0.1: 0.1); }
-    // reseta a mana atual para o novo máximo
-    MANA_TYPES.forEach(t=>{ if(t!=='rubra') state.mana[t].cur=null; });
+    // reseta a mana atual para o novo máximo (nunca grava null — o Firebase apaga chaves com valor null)
+    MANA_TYPES.forEach(t=>{ if(t!=='rubra'){ if(!state.mana[t]) state.mana[t]={}; state.mana[t].cur = manaMax(t); } });
     document.getElementById('religion-note').textContent = (RELIGIONS[state.religiao]||RELIGIONS.nenhuma).note;
     renderMana(); renderSpells(); scheduleSave();
   });
@@ -861,13 +876,27 @@ function bindIdentityEvents(){
     btn.addEventListener('click', ()=>{
       ensureVidaInit();
       const delta = parseInt(btn.dataset.vidaAdj)||0;
-      const max = vidaMax();
-      state.vidaAtual = Math.max(0, Math.min(max, state.vidaAtual + delta));
+      state.vidaAtual = Math.max(0, Math.min(state.vidaMax, state.vidaAtual + delta));
       renderVidaDefesa(); scheduleSave();
     });
   });
   document.getElementById('vida-full').addEventListener('click', ()=>{
-    state.vidaAtual = vidaMax();
+    ensureVidaInit();
+    state.vidaAtual = state.vidaMax;
+    renderVidaDefesa(); scheduleSave();
+  });
+  document.getElementById('vida-atual-input').addEventListener('change', e=>{
+    ensureVidaInit();
+    let v = parseInt(e.target.value);
+    if(!Number.isFinite(v)) v = 0;
+    state.vidaAtual = Math.max(0, Math.min(state.vidaMax, v));
+    renderVidaDefesa(); scheduleSave();
+  });
+  document.getElementById('vida-max-input').addEventListener('change', e=>{
+    let v = parseInt(e.target.value);
+    if(!Number.isFinite(v) || v < 0) v = 0;
+    state.vidaMax = v;
+    if(state.vidaAtual > state.vidaMax) state.vidaAtual = state.vidaMax;
     renderVidaDefesa(); scheduleSave();
   });
   document.getElementById('defesa-bonus').addEventListener('change', e=>{
