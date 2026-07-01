@@ -456,7 +456,7 @@ function manaMax(tipo){
     if(tipo === "rubra") return null;
     const espirito = state.attrs.espirito || 0;
     // 50 de mana base +15 por ponto de ma
-    let manaBase = 70 + {(espirito * 5)}/2;
+    let manaBase = 50 + (espirito * 4);
     // Regra especial do Haukenismo
     if(tipo === "branca" && state.religiao === "haukenismo"){
         return Math.round(manaMax("azul") / 2) + 20;
