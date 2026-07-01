@@ -223,7 +223,7 @@ tr:last-child td{ border-bottom:none; }
       <path d="M50 18 L78 35 L78 65 L50 82 L22 65 L22 35 Z" stroke-opacity="0.35"/>
     </g></svg>
     <h1 id="titulo">ANDROMEDA</h1>
-    <div class="sub">Ficha de Personagem · RPG Medieval</div>
+    <div class="sub">Ficha de Personagem · RPG Medieval do Rafaei</div>
     <div class="divider"><div class="ln"></div><div class="dot"></div><div class="ln"></div></div>
   </header>
 
@@ -235,7 +235,7 @@ tr:last-child td{ border-bottom:none; }
       <div class="field"><label>Raça</label><input id="i-raca" placeholder="ex: Humana, Elfa, Anã..."></div>
       <div class="field"><label>Classe</label><input id="i-classe" placeholder="ex: Guerreira, Maga..."></div>
       <div class="field"><label>Povo</label><input id="i-povo" placeholder="ex: Reino de Vael..."></div>
-      <div class="field"><label>Nível</label><input id="i-nivel" type="number" min="1" value="1"></div>
+      <div class="field"><label>Nível (1–15)</label><input id="i-nivel" type="number" min="1" max="15" value="1"></div>
       <div class="field">
         <label>Religião</label>
         <select id="i-religiao">
@@ -811,7 +811,13 @@ function bindIdentityEvents(){
   document.getElementById('i-raca').addEventListener('input', e=>{ state.raca=e.target.value; scheduleSave(); });
   document.getElementById('i-classe').addEventListener('input', e=>{ state.classe=e.target.value; scheduleSave(); });
   document.getElementById('i-povo').addEventListener('input', e=>{ state.povo=e.target.value; scheduleSave(); });
-  document.getElementById('i-nivel').addEventListener('input', e=>{ state.nivel=parseInt(e.target.value)||1; updateTurnMax(); renderSpells(); renderVidaDefesa(); scheduleSave(); });
+  document.getElementById('i-nivel').addEventListener('input', e=>{
+    let n = parseInt(e.target.value)||1;
+    n = Math.max(1, Math.min(15, n));
+    state.nivel = n;
+    e.target.value = n;
+    updateTurnMax(); renderSpells(); renderVidaDefesa(); scheduleSave();
+  });
   document.getElementById('i-religiao').addEventListener('change', e=>{
     state.religiao = e.target.value;
     if(state.religiao==='althimos'){ state.althimosVariance = (Math.random()<0.5? -0.1: 0.1); }
