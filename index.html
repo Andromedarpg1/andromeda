@@ -154,6 +154,18 @@ button.small{ padding:5px 9px; font-size:10px; }
 .mana-actions button{ flex:1; min-width:38px; padding:8px 4px;}
 .mana-mult{ font-size:11px; color:var(--parchment-dim); margin-top:8px; font-style:italic;}
 
+/* VIDA POR NÍVEL */
+.vida-niveis-box{ margin-top:22px; padding-top:18px; border-top:1px solid var(--line); }
+.vida-niveis-label{ font-family:'Cinzel',serif; font-size:11px; letter-spacing:2px; text-transform:uppercase; color:var(--parchment-dim); margin-bottom:10px;}
+.vida-niveis-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(84px,1fr)); gap:8px;}
+.vida-nivel-box{ background:var(--void); border:1px solid var(--line); border-radius:6px; padding:8px 6px; text-align:center; transition:all .15s ease;}
+.vida-nivel-box .lvl{ font-family:'Cinzel',serif; font-size:10px; letter-spacing:1px; color:var(--parchment-dim); text-transform:uppercase;}
+.vida-nivel-box .hp{ font-family:'JetBrains Mono',monospace; font-size:16px; color:var(--parchment); margin-top:3px;}
+.vida-nivel-box.active{ border-color:var(--gold); background:linear-gradient(180deg,var(--panel-2),#23294a); box-shadow:0 0 10px rgba(201,162,39,0.25);}
+.vida-nivel-box.active .lvl{ color:var(--gold-soft);}
+.vida-nivel-box.active .hp{ color:var(--gold-soft); font-weight:600;}
+.vida-nivel-box.past{ opacity:0.55; }
+
 /* SPELLS */
 .turn-bar{ display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:18px; padding:10px 14px; background:var(--void); border:1px solid var(--line); border-radius:6px;}
 .turn-count{ font-family:'JetBrains Mono',monospace; font-size:14px; color:var(--gold-soft);}
@@ -261,17 +273,12 @@ tr:last-child td{ border-bottom:none; }
     <h2>Vida &amp; Defesa</h2>
     <div class="mana-grid">
       <div class="mana-card mana-vida">
-        <div class="mana-title"><span class="mana-dot"></span>Vida (manual)</div>
+        <div class="mana-title"><span class="mana-dot"></span>Vida</div>
         <div class="mana-bar-track"><div class="mana-bar-fill" id="vida-bar-fill"></div></div>
-        <div style="display:flex;gap:10px;margin-top:10px;">
-          <div class="field" style="flex:1;">
-            <label>Atual</label>
-            <input id="vida-atual-input" type="number" value="10">
-          </div>
-          <div class="field" style="flex:1;">
-            <label>Máxima</label>
-            <input id="vida-max-input" type="number" value="10">
-          </div>
+        <div class="mana-nums"><span>Atual: <b id="vida-atual-label">10</b></span><span>Máxima: <b id="vida-max-label">10</b></span></div>
+        <div class="field" style="max-width:160px;margin-top:10px;">
+          <label>Vida atual (editar direto)</label>
+          <input id="vida-atual-input" type="number" value="10">
         </div>
         <div class="mana-actions">
           <button class="small" data-vida-adj="-5">-5</button>
@@ -280,6 +287,7 @@ tr:last-child td{ border-bottom:none; }
           <button class="small" data-vida-adj="5">+5</button>
           <button class="small" id="vida-full">Restaurar</button>
         </div>
+        <div class="mana-mult">Máxima = (Constituição + Espírito) ÷ 2 + 10, mais 9 por nível acima do 1º.</div>
       </div>
       <div class="mana-card mana-defesa">
         <div class="mana-title"><span class="mana-dot"></span>Defesa</div>
@@ -290,6 +298,10 @@ tr:last-child td{ border-bottom:none; }
           <input id="defesa-bonus" type="number" value="0">
         </div>
       </div>
+    </div>
+    <div class="vida-niveis-box">
+      <div class="vida-niveis-label">Progressão de Vida Máxima por Nível (1–15)</div>
+      <div class="vida-niveis-grid" id="vida-niveis-grid"></div>
     </div>
   </section>
 
@@ -535,11 +547,42 @@ function defesaBase(){
 function defesaTotal(){
   return defesaBase() + (Number(state.defesaBonus)||0);
 }
+
+/* ---------- VIDA: CÁLCULO POR NÍVEL ---------- */
+// Vida máxima no nível 1: (Constituição + Espírito) ÷ 2 + 10 (arredondado pra baixo)
+// A cada nível acima do 1º, soma-se 9 de vida.
+function vidaBaseNivel1(){
+  const con = Number(state.attrs && state.attrs.constituicao) || 0;
+  const esp = Number(state.attrs && state.attrs.espirito) || 0;
+  return Math.floor((con + esp) / 2) + 10;
+}
+function vidaMaxNoNivel(n){
+  n = Math.max(1, Math.min(15, parseInt(n) || 1));
+  return vidaBaseNivel1() + 9 * (n - 1);
+}
+function vidaMaxAtual(){
+  return vidaMaxNoNivel(state.nivel || 1);
+}
 function ensureVidaInit(){
-  if(!Number.isFinite(state.vidaMax)){ state.vidaMax = 10; }
+  // A vida máxima agora é sempre derivada dos atributos + nível (não é mais editada manualmente).
+  state.vidaMax = vidaMaxAtual();
   if(!Number.isFinite(state.vidaAtual)){ state.vidaAtual = state.vidaMax; }
   if(state.vidaAtual > state.vidaMax){ state.vidaAtual = state.vidaMax; }
   if(state.vidaAtual < 0){ state.vidaAtual = 0; }
+}
+function renderVidaNiveis(){
+  const grid = document.getElementById('vida-niveis-grid');
+  if(!grid) return;
+  const nivelAtual = state.nivel || 1;
+  let html='';
+  for(let n=1; n<=15; n++){
+    const hp = vidaMaxNoNivel(n);
+    let cls = 'vida-nivel-box';
+    if(n === nivelAtual) cls += ' active';
+    else if(n < nivelAtual) cls += ' past';
+    html += `<div class="${cls}"><div class="lvl">Nível ${n}</div><div class="hp">${hp} HP</div></div>`;
+  }
+  grid.innerHTML = html;
 }
 function renderVidaDefesa(){
   ensureVidaInit();
@@ -548,16 +591,19 @@ function renderVidaDefesa(){
   const pct = max>0 ? Math.max(0, Math.min(100, (cur/max)*100)) : 0;
   const fill = document.getElementById('vida-bar-fill');
   const curInput = document.getElementById('vida-atual-input');
-  const maxInput = document.getElementById('vida-max-input');
+  const maxLabel = document.getElementById('vida-max-label');
+  const atualLabel = document.getElementById('vida-atual-label');
   if(fill) fill.style.width = pct + '%';
   if(curInput && document.activeElement!==curInput) curInput.value = cur;
-  if(maxInput && document.activeElement!==maxInput) maxInput.value = max;
+  if(maxLabel) maxLabel.textContent = max;
+  if(atualLabel) atualLabel.textContent = cur;
   const db_ = document.getElementById('defesa-base');
   const dt_ = document.getElementById('defesa-total');
   const dbonus = document.getElementById('defesa-bonus');
   if(db_) db_.textContent = defesaBase();
   if(dt_) dt_.textContent = defesaTotal();
   if(dbonus && document.activeElement!==dbonus) dbonus.value = state.defesaBonus||0;
+  renderVidaNiveis();
 }
 function ensureManaInit(){
   if(!state.mana) state.mana = {};
@@ -890,13 +936,6 @@ function bindIdentityEvents(){
     let v = parseInt(e.target.value);
     if(!Number.isFinite(v)) v = 0;
     state.vidaAtual = Math.max(0, Math.min(state.vidaMax, v));
-    renderVidaDefesa(); scheduleSave();
-  });
-  document.getElementById('vida-max-input').addEventListener('change', e=>{
-    let v = parseInt(e.target.value);
-    if(!Number.isFinite(v) || v < 0) v = 0;
-    state.vidaMax = v;
-    if(state.vidaAtual > state.vidaMax) state.vidaAtual = state.vidaMax;
     renderVidaDefesa(); scheduleSave();
   });
   document.getElementById('defesa-bonus').addEventListener('change', e=>{
