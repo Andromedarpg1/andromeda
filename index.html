@@ -154,18 +154,6 @@ button.small{ padding:5px 9px; font-size:10px; }
 .mana-actions button{ flex:1; min-width:38px; padding:8px 4px;}
 .mana-mult{ font-size:11px; color:var(--parchment-dim); margin-top:8px; font-style:italic;}
 
-/* VIDA POR NÍVEL */
-.vida-niveis-box{ margin-top:22px; padding-top:18px; border-top:1px solid var(--line); }
-.vida-niveis-label{ font-family:'Cinzel',serif; font-size:11px; letter-spacing:2px; text-transform:uppercase; color:var(--parchment-dim); margin-bottom:10px;}
-.vida-niveis-grid{ display:grid; grid-template-columns:repeat(auto-fill,minmax(84px,1fr)); gap:8px;}
-.vida-nivel-box{ background:var(--void); border:1px solid var(--line); border-radius:6px; padding:8px 6px; text-align:center; transition:all .15s ease;}
-.vida-nivel-box .lvl{ font-family:'Cinzel',serif; font-size:10px; letter-spacing:1px; color:var(--parchment-dim); text-transform:uppercase;}
-.vida-nivel-box .hp{ font-family:'JetBrains Mono',monospace; font-size:16px; color:var(--parchment); margin-top:3px;}
-.vida-nivel-box.active{ border-color:var(--gold); background:linear-gradient(180deg,var(--panel-2),#23294a); box-shadow:0 0 10px rgba(201,162,39,0.25);}
-.vida-nivel-box.active .lvl{ color:var(--gold-soft);}
-.vida-nivel-box.active .hp{ color:var(--gold-soft); font-weight:600;}
-.vida-nivel-box.past{ opacity:0.55; }
-
 /* SPELLS */
 .turn-bar{ display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; margin-bottom:18px; padding:10px 14px; background:var(--void); border:1px solid var(--line); border-radius:6px;}
 .turn-count{ font-family:'JetBrains Mono',monospace; font-size:14px; color:var(--gold-soft);}
@@ -275,9 +263,19 @@ tr:last-child td{ border-bottom:none; }
       <div class="mana-card mana-vida">
         <div class="mana-title"><span class="mana-dot"></span>Vida</div>
         <div class="mana-bar-track"><div class="mana-bar-fill" id="vida-bar-fill"></div></div>
-        <div class="mana-nums"><span>Atual: <b id="vida-atual-label">10</b></span><span>Máxima: <b id="vida-max-label">10</b></span></div>
-        <div class="field" style="max-width:160px;margin-top:10px;">
-          <label>Vida atual (editar direto)</label>
+        <div class="mana-nums"><span id="vida-nums">0 / 10</span><span style="font-style:italic;">(Esp+Const)÷2+10</span></div>
+        <div style="display:flex;gap:10px;margin-top:10px;">
+          <div class="field" style="flex:1;">
+            <label>Bônus (soma antes de ÷2)</label>
+            <input id="vida-bonus-formula-input" type="number" value="0">
+          </div>
+          <div class="field" style="flex:1;">
+            <label>Bônus (soma direto na Máxima)</label>
+            <input id="vida-bonus-max-input" type="number" value="0">
+          </div>
+        </div>
+        <div class="field" style="margin-top:10px;">
+          <label>Atual</label>
           <input id="vida-atual-input" type="number" value="10">
         </div>
         <div class="mana-actions">
@@ -287,7 +285,6 @@ tr:last-child td{ border-bottom:none; }
           <button class="small" data-vida-adj="5">+5</button>
           <button class="small" id="vida-full">Restaurar</button>
         </div>
-        <div class="mana-mult">Máxima = (Constituição + Espírito) ÷ 2 + 10, mais 9 por nível acima do 1º.</div>
       </div>
       <div class="mana-card mana-defesa">
         <div class="mana-title"><span class="mana-dot"></span>Defesa</div>
@@ -298,10 +295,6 @@ tr:last-child td{ border-bottom:none; }
           <input id="defesa-bonus" type="number" value="0">
         </div>
       </div>
-    </div>
-    <div class="vida-niveis-box">
-      <div class="vida-niveis-label">Progressão de Vida Máxima por Nível (1–15)</div>
-      <div class="vida-niveis-grid" id="vida-niveis-grid"></div>
     </div>
   </section>
 
@@ -428,7 +421,8 @@ function defaultState(){
     mana: { negra:{cur:null}, rubra:{cur:0}, branca:{cur:null}, azul:{cur:null} },
     manaBonus: { negra:0, branca:0, azul:0 },
     vidaAtual: null,
-    vidaMax: 10,
+    vidaBonusFormula: 0,
+    vidaBonusMax: 0,
     defesaBonus: 0,
     spells: [],
     turnUsed: 0,
@@ -470,11 +464,17 @@ let PERSONAGEM_KEY = getPersonagemKey();
 
 /* ---------- PERSISTÊNCIA (Firebase Realtime Database) ---------- */
 let db = null;
+let firebaseWarningEl = null;
 function showFirebaseWarning(msg){
+  if(firebaseWarningEl){ firebaseWarningEl.remove(); }
   const el = document.createElement('div');
   el.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:60;background:#5a2020;color:#f5e2d8;font-family:EB Garamond,serif;font-size:14px;text-align:center;padding:10px 16px;border-bottom:1px solid #8a3a3a;';
   el.textContent = '⚠ ' + msg + ' — a ficha funciona, mas as alterações não vão salvar até isso ser corrigido.';
   document.body.prepend(el);
+  firebaseWarningEl = el;
+}
+function clearFirebaseWarning(){
+  if(firebaseWarningEl){ firebaseWarningEl.remove(); firebaseWarningEl = null; }
 }
 function initFirebase(){
   try{
@@ -496,6 +496,32 @@ function initFirebase(){
     return false;
   }
 }
+// Testa de verdade se dá pra escrever e ler no banco, logo ao abrir a ficha.
+// Isso pega problemas que "iniciar" o Firebase sozinho não detecta, como
+// regras de permissão erradas no Realtime Database.
+async function testFirebaseConnection(){
+  if(!db) return false;
+  try{
+    const testRef = db.ref('fichas/_teste_conexao');
+    await testRef.set({ ts: Date.now() });
+    const snap = await testRef.once('value');
+    if(!snap.exists()){
+      showFirebaseWarning('O banco aceitou salvar mas não conseguiu ler de volta (verifique as Regras do Realtime Database)');
+      return false;
+    }
+    await testRef.remove();
+    clearFirebaseWarning();
+    return true;
+  }catch(e){
+    console.error('Teste de conexão com o Firebase falhou:', e);
+    let motivo = e.message || String(e);
+    if(motivo.toLowerCase().includes('permission')){
+      motivo = 'Permissão negada — vá no Firebase Console → Realtime Database → Regras, e publique { ".read": true, ".write": true }';
+    }
+    showFirebaseWarning('Falha ao salvar/ler no banco: ' + motivo);
+    return false;
+  }
+}
 function storagePath(){ return 'fichas/' + PERSONAGEM_KEY; }
 let saveTimer=null;
 function scheduleSave(){
@@ -503,11 +529,22 @@ function scheduleSave(){
   saveTimer=setTimeout(saveState, 500);
 }
 async function saveState(){
-  if(!db) return;
+  if(!db){
+    showFirebaseWarning('Sem conexão com o banco de dados — a última alteração NÃO foi salva');
+    return;
+  }
   try{
     await db.ref(storagePath()).set(state);
+    clearFirebaseWarning();
     flashSaved();
-  }catch(e){ console.error('Erro ao salvar no Firebase', e); }
+  }catch(e){
+    console.error('Erro ao salvar no Firebase', e);
+    let motivo = e.message || String(e);
+    if(motivo.toLowerCase().includes('permission')){
+      motivo = 'Permissão negada pelas Regras do Realtime Database';
+    }
+    showFirebaseWarning('Não foi possível salvar: ' + motivo);
+  }
 }
 async function loadState(){
   if(!db){ state = defaultState(); return; }
@@ -515,7 +552,10 @@ async function loadState(){
     const snap = await db.ref(storagePath()).once('value');
     const val = snap.val();
     if(val){ state = val; return; }
-  }catch(e){ console.error('Erro ao carregar do Firebase', e); }
+  }catch(e){
+    console.error('Erro ao carregar do Firebase', e);
+    showFirebaseWarning('Não foi possível carregar a ficha salva (' + (e.message||e) + ')');
+  }
   state = defaultState();
 }
 function flashSaved(){
@@ -547,63 +587,40 @@ function defesaBase(){
 function defesaTotal(){
   return defesaBase() + (Number(state.defesaBonus)||0);
 }
-
-/* ---------- VIDA: CÁLCULO POR NÍVEL ---------- */
-// Vida máxima no nível 1: (Constituição + Espírito) ÷ 2 + 10 (arredondado pra baixo)
-// A cada nível acima do 1º, soma-se 9 de vida.
-function vidaBaseNivel1(){
-  const con = Number(state.attrs && state.attrs.constituicao) || 0;
-  const esp = Number(state.attrs && state.attrs.espirito) || 0;
-  return Math.floor((con + esp) / 2) + 10;
-}
-function vidaMaxNoNivel(n){
-  n = Math.max(1, Math.min(15, parseInt(n) || 1));
-  return vidaBaseNivel1() + 9 * (n - 1);
-}
-function vidaMaxAtual(){
-  return vidaMaxNoNivel(state.nivel || 1);
+function vidaMax(){
+  const c = Number(state.attrs.constituicao)||0;
+  const e = Number(state.attrs.espirito)||0;
+  const bonusFormula = Number(state.vidaBonusFormula)||0;
+  const bonusMax = Number(state.vidaBonusMax)||0;
+  return Math.floor((c+e+bonusFormula)/2) + 10 + bonusMax;
 }
 function ensureVidaInit(){
-  // A vida máxima agora é sempre derivada dos atributos + nível (não é mais editada manualmente).
-  state.vidaMax = vidaMaxAtual();
-  if(!Number.isFinite(state.vidaAtual)){ state.vidaAtual = state.vidaMax; }
-  if(state.vidaAtual > state.vidaMax){ state.vidaAtual = state.vidaMax; }
+  const max = vidaMax();
+  if(!Number.isFinite(state.vidaAtual)){ state.vidaAtual = max; }
+  if(state.vidaAtual > max){ state.vidaAtual = max; }
   if(state.vidaAtual < 0){ state.vidaAtual = 0; }
-}
-function renderVidaNiveis(){
-  const grid = document.getElementById('vida-niveis-grid');
-  if(!grid) return;
-  const nivelAtual = state.nivel || 1;
-  let html='';
-  for(let n=1; n<=15; n++){
-    const hp = vidaMaxNoNivel(n);
-    let cls = 'vida-nivel-box';
-    if(n === nivelAtual) cls += ' active';
-    else if(n < nivelAtual) cls += ' past';
-    html += `<div class="${cls}"><div class="lvl">Nível ${n}</div><div class="hp">${hp} HP</div></div>`;
-  }
-  grid.innerHTML = html;
 }
 function renderVidaDefesa(){
   ensureVidaInit();
-  const max = state.vidaMax;
+  const max = vidaMax();
   const cur = state.vidaAtual;
   const pct = max>0 ? Math.max(0, Math.min(100, (cur/max)*100)) : 0;
   const fill = document.getElementById('vida-bar-fill');
-  const curInput = document.getElementById('vida-atual-input');
-  const maxLabel = document.getElementById('vida-max-label');
-  const atualLabel = document.getElementById('vida-atual-label');
+  const nums = document.getElementById('vida-nums');
+  const atualInput = document.getElementById('vida-atual-input');
+  const bonusFormulaInput = document.getElementById('vida-bonus-formula-input');
+  const bonusMaxInput = document.getElementById('vida-bonus-max-input');
   if(fill) fill.style.width = pct + '%';
-  if(curInput && document.activeElement!==curInput) curInput.value = cur;
-  if(maxLabel) maxLabel.textContent = max;
-  if(atualLabel) atualLabel.textContent = cur;
+  if(nums) nums.textContent = `${cur} / ${max}`;
+  if(atualInput && document.activeElement!==atualInput) atualInput.value = cur;
+  if(bonusFormulaInput && document.activeElement!==bonusFormulaInput) bonusFormulaInput.value = state.vidaBonusFormula||0;
+  if(bonusMaxInput && document.activeElement!==bonusMaxInput) bonusMaxInput.value = state.vidaBonusMax||0;
   const db_ = document.getElementById('defesa-base');
   const dt_ = document.getElementById('defesa-total');
   const dbonus = document.getElementById('defesa-bonus');
   if(db_) db_.textContent = defesaBase();
   if(dt_) dt_.textContent = defesaTotal();
   if(dbonus && document.activeElement!==dbonus) dbonus.value = state.defesaBonus||0;
-  renderVidaNiveis();
 }
 function ensureManaInit(){
   if(!state.mana) state.mana = {};
@@ -859,19 +876,26 @@ function renderInv(){
 }
 
 /* ---------- LISTENERS GERAIS ---------- */
+// Liga um evento com segurança: se o elemento não existir na página,
+// avisa no console em vez de travar TODOS os botões da ficha.
+function on(id, evt, fn){
+  const el = document.getElementById(id);
+  if(el){ el.addEventListener(evt, fn); }
+  else { console.error('[bind] elemento não encontrado, botão ignorado:', id); }
+}
 function bindIdentityEvents(){
-  document.getElementById('i-nome').addEventListener('input', e=>{ state.nome=e.target.value; document.getElementById('titulo').textContent=(e.target.value||'Andromeda').toUpperCase(); scheduleSave(); });
-  document.getElementById('i-raca').addEventListener('input', e=>{ state.raca=e.target.value; scheduleSave(); });
-  document.getElementById('i-classe').addEventListener('input', e=>{ state.classe=e.target.value; scheduleSave(); });
-  document.getElementById('i-povo').addEventListener('input', e=>{ state.povo=e.target.value; scheduleSave(); });
-  document.getElementById('i-nivel').addEventListener('input', e=>{
+  on('i-nome', 'input', e=>{ state.nome=e.target.value; document.getElementById('titulo').textContent=(e.target.value||'Andromeda').toUpperCase(); scheduleSave(); });
+  on('i-raca', 'input', e=>{ state.raca=e.target.value; scheduleSave(); });
+  on('i-classe', 'input', e=>{ state.classe=e.target.value; scheduleSave(); });
+  on('i-povo', 'input', e=>{ state.povo=e.target.value; scheduleSave(); });
+  on('i-nivel', 'input', e=>{
     let n = parseInt(e.target.value)||1;
     n = Math.max(1, Math.min(15, n));
     state.nivel = n;
     e.target.value = n;
     updateTurnMax(); renderSpells(); renderVidaDefesa(); scheduleSave();
   });
-  document.getElementById('i-religiao').addEventListener('change', e=>{
+  on('i-religiao', 'change', e=>{
     state.religiao = e.target.value;
     if(state.religiao==='althimos'){ state.althimosVariance = (Math.random()<0.5? -0.1: 0.1); }
     // reseta a mana atual para o novo máximo (nunca grava null — o Firebase apaga chaves com valor null)
@@ -879,10 +903,10 @@ function bindIdentityEvents(){
     document.getElementById('religion-note').textContent = (RELIGIONS[state.religiao]||RELIGIONS.nenhuma).note;
     renderMana(); renderSpells(); scheduleSave();
   });
-  document.getElementById('btn-novarodada').addEventListener('click', ()=>{
+  on('btn-novarodada', 'click', ()=>{
     state.turnUsed=0; renderSpells(); scheduleSave();
   });
-  document.getElementById('btn-addspell').addEventListener('click', ()=>{
+  on('btn-addspell', 'click', ()=>{
     const nome = document.getElementById('sp-nome').value.trim();
     if(!nome) return;
     const tipo = document.getElementById('sp-tipo').value;
@@ -892,19 +916,19 @@ function bindIdentityEvents(){
     document.getElementById('sp-nome').value=''; document.getElementById('sp-efeito').value=''; document.getElementById('sp-custo').value=50;
     renderSpells(); scheduleSave();
   });
-  document.getElementById('btn-addbuff').addEventListener('click', ()=>{
+  on('btn-addbuff', 'click', ()=>{
     const nome=document.getElementById('bf-nome').value.trim(); if(!nome) return;
     state.buffs.push({nome, dur:document.getElementById('bf-dur').value.trim(), desc:document.getElementById('bf-desc').value.trim()});
     document.getElementById('bf-nome').value=''; document.getElementById('bf-dur').value=''; document.getElementById('bf-desc').value='';
     renderBD(); scheduleSave();
   });
-  document.getElementById('btn-adddebuff').addEventListener('click', ()=>{
+  on('btn-adddebuff', 'click', ()=>{
     const nome=document.getElementById('db-nome').value.trim(); if(!nome) return;
     state.debuffs.push({nome, dur:document.getElementById('db-dur').value.trim(), desc:document.getElementById('db-desc').value.trim()});
     document.getElementById('db-nome').value=''; document.getElementById('db-dur').value=''; document.getElementById('db-desc').value='';
     renderBD(); scheduleSave();
   });
-  document.getElementById('btn-addinv').addEventListener('click', ()=>{
+  on('btn-addinv', 'click', ()=>{
     const nome=document.getElementById('inv-nome').value.trim(); if(!nome) return;
     const qtd=parseInt(document.getElementById('inv-qtd').value)||1;
     const desc=document.getElementById('inv-desc').value.trim();
@@ -912,7 +936,7 @@ function bindIdentityEvents(){
     document.getElementById('inv-nome').value=''; document.getElementById('inv-qtd').value=1; document.getElementById('inv-desc').value='';
     renderInv(); scheduleSave();
   });
-  document.getElementById('btn-reset').addEventListener('click', ()=>{
+  on('btn-reset', 'click', ()=>{
     if(confirm('Isso vai apagar toda a ficha e recomeçar do zero. Continuar?')){
       state = defaultState();
       renderAll(); scheduleSave();
@@ -922,23 +946,31 @@ function bindIdentityEvents(){
     btn.addEventListener('click', ()=>{
       ensureVidaInit();
       const delta = parseInt(btn.dataset.vidaAdj)||0;
-      state.vidaAtual = Math.max(0, Math.min(state.vidaMax, state.vidaAtual + delta));
+      state.vidaAtual = Math.max(0, Math.min(vidaMax(), state.vidaAtual + delta));
       renderVidaDefesa(); scheduleSave();
     });
   });
-  document.getElementById('vida-full').addEventListener('click', ()=>{
-    ensureVidaInit();
-    state.vidaAtual = state.vidaMax;
+  on('vida-full', 'click', ()=>{
+    state.vidaAtual = vidaMax();
     renderVidaDefesa(); scheduleSave();
   });
-  document.getElementById('vida-atual-input').addEventListener('change', e=>{
-    ensureVidaInit();
+  on('vida-atual-input', 'change', e=>{
     let v = parseInt(e.target.value);
     if(!Number.isFinite(v)) v = 0;
-    state.vidaAtual = Math.max(0, Math.min(state.vidaMax, v));
+    state.vidaAtual = Math.max(0, Math.min(vidaMax(), v));
     renderVidaDefesa(); scheduleSave();
   });
-  document.getElementById('defesa-bonus').addEventListener('change', e=>{
+  on('vida-bonus-formula-input', 'change', e=>{
+    state.vidaBonusFormula = parseInt(e.target.value)||0;
+    ensureVidaInit();
+    renderVidaDefesa(); scheduleSave();
+  });
+  on('vida-bonus-max-input', 'change', e=>{
+    state.vidaBonusMax = parseInt(e.target.value)||0;
+    ensureVidaInit();
+    renderVidaDefesa(); scheduleSave();
+  });
+  on('defesa-bonus', 'change', e=>{
     state.defesaBonus = parseInt(e.target.value)||0;
     renderVidaDefesa(); scheduleSave();
   });
@@ -984,6 +1016,7 @@ function renderAll(){
   bindIdentityEvents();
   const sub = document.querySelector('header .sub');
   if(sub) sub.textContent = `Ficha de Personagem · RPG Medieval · ${PERSONAGEM_KEY}`;
+  testFirebaseConnection(); // roda em segundo plano; avisa na tela se o salvamento não funcionar
 })();
 
 </script>
