@@ -553,16 +553,40 @@ async function saveState(){
   }
 }
 async function loadState(){
-  if(!db){ state = defaultState(); return; }
-  try{
-    const snap = await db.ref(storagePath()).once('value');
-    const val = snap.val();
-    if(val){ state = val; return; }
-  }catch(e){
-    console.error('Erro ao carregar do Firebase', e);
-    showFirebaseWarning('Não foi possível carregar a ficha salva (' + (e.message||e) + ')');
+  if(!db){
+    state = defaultState();
+    return;
   }
-  state = defaultState();
+
+  return new Promise((resolve)=>{
+    let primeiraLeitura = true;
+
+    db.ref(storagePath()).on("value",(snap)=>{
+      const val = snap.val();
+
+      if(val){
+        state = val;
+      }else{
+        state = defaultState();
+      }
+
+      // Atualiza toda a interface sempre que o banco mudar
+      if(typeof render === "function"){
+        render();
+      }else if(typeof updateUI === "function"){
+        updateUI();
+      }
+
+      if(primeiraLeitura){
+        primeiraLeitura = false;
+        resolve();
+      }
+    },(e)=>{
+      console.error("Erro ao carregar do Firebase", e);
+      state = defaultState();
+      resolve();
+    });
+  });
 }
 function flashSaved(){
   const el = document.getElementById('save-ind');
