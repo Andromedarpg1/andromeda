@@ -520,9 +520,9 @@ function manaMax(tipo){
   return base + bonus;
 }
 function vidaMax(){
-  const c = Number(state.attrs.constituicao)||0, e = Number(state.attrs.espirito)||0;
-  const nivel = Number(state.nivel)||1;
-  return Math.floor((c+e)/2) + 10 + 9*(nivel-1);
+  const c = Number(state.attrs.constituicao) || 0;
+  const e = Number(state.attrs.espirito) || 0;
+  return Math.floor((c + e) / 2) + 10;
 }
 function defesaBase(){
   return Math.floor((Number(state.attrs.constituicao)||0)/2);
