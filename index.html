@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Andromeda — Ficha</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@500;600;700&family=Marcellus&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
+<script src="firebase-config.js"></script>
+</head>
+<body>
+<div id="gate" class="gate">
+  <div class="gate-box">
+    <h1>Andromeda</h1>
+    <p>Qual ficha você quer abrir?</p>
+    <input id="gate-input" placeholder="nome do seu personagem" autocomplete="off">
+    <button id="gate-btn" class="btn gold">Entrar</button>
+    <small>Cada nome abre uma ficha separada. Guarde o link que aparecer: ele é a sua ficha.</small>
+  </div>
+</div>
+<canvas class="stars" id="starfield"></canvas>
+<div id="veil"></div>
+
+<div class="app">
+  <aside class="side">
+    <div class="brand">
+      <svg viewBox="0 0 100 100" class="crest"><g fill="none" stroke="#f2cf7a" stroke-width="1.6"><circle cx="50" cy="50" r="4" fill="#f2cf7a"/><circle cx="50" cy="50" r="30" stroke-opacity=".45"/><path d="M50 14 L82 32 L82 68 L50 86 L18 68 L18 32 Z" stroke-opacity=".6"/><circle cx="50" cy="14" r="2.5" fill="#f2cf7a"/><circle cx="82" cy="68" r="2.5" fill="#8b6cff"/><circle cx="18" cy="68" r="2.5" fill="#5be3d0"/></g></svg>
+      <div><b id="side-nome">Andromeda</b><span id="side-sub"></span></div>
+    </div>
+    <nav id="nav"></nav>
+    <div class="side-foot">
+      <button id="btn-undo" class="btn ghost" data-a="undo" title="Desfazer (Ctrl+Z)"></button>
+      <span id="save-ind" class="save">salvo</span>
+    </div>
+  </aside>
+
+  <main class="main">
+    <!-- FICHA -->
+    <section class="page" id="p-ficha">
+      <div class="ph"><h1 id="titulo">Andromeda</h1><p id="rel-note"></p></div>
+      <div class="ident">
+        <label class="fld"><span>Nome</span><input id="i-nome" data-live="nome"></label>
+        <label class="fld"><span>Raça</span><input id="i-raca" data-live="raca" placeholder="Humana, Elfa, Anã…"></label>
+        <label class="fld"><span>Classe</span><input id="i-classe" data-live="classe" placeholder="Guerreira, Maga…"></label>
+        <label class="fld"><span>Povo</span><input id="i-povo" data-live="povo" placeholder="Reino de Vael…"></label>
+        <label class="fld"><span>Religião</span><select id="i-religiao" data-i="religiao">
+          <option value="haukenismo">Haukenismo</option><option value="danitunismo">Danitunismo</option><option value="althimos">Althimos</option><option value="belisianismo">Belisianismo</option><option value="nenhuma">Sem fé</option></select></label>
+        <div class="fld"><span>Nível</span><div class="stp"><button data-a="lvl" data-d="-1" aria-label="Baixar nível">−</button><input id="i-nivel" type="number" min="1" data-i="nivel" aria-label="Nível"><button data-a="lvl" data-d="1" aria-label="Subir nível">+</button></div></div>
+      </div>
+      <div class="hero">
+        <div id="starcard" class="starcard"></div>
+        <div class="vitals">
+          <div id="vida" class="vida" data-p="vidaAtual"></div>
+          <div id="defesa" class="defesa" data-p="defesaBonus"></div>
+        </div>
+      </div>
+      <h2 class="sec">Atributos</h2>
+      <div id="attrs" class="attrs"></div>
+    </section>
+
+    <!-- MAGIA -->
+    <section class="page" id="p-magia">
+      <div class="ph"><h1>Magia</h1><p>Reservas de mana e feitiços conhecidos.</p></div>
+      <div id="mana" class="mana-grid"></div>
+      <h2 class="sec">Feitiços</h2>
+      <div class="turnbar"><div id="turn-dots" class="dots"></div><span id="turn-txt"></span><button class="btn ghost" data-a="newround">Nova rodada</button><button class="btn gold" data-a="spell-new">Novo feitiço</button></div>
+      <div id="spells" class="spells"></div>
+    </section>
+
+    <!-- INVENTÁRIO -->
+    <section class="page" id="p-inventario">
+      <div class="ph row"><div><h1>Inventário</h1><p id="inv-count"></p></div><button class="btn gold" data-a="inv-new">Novo item</button></div>
+      <div id="inv-tabs" class="tabs"></div>
+      <div id="inv-list" class="inv"></div>
+    </section>
+
+    <!-- ESTADOS -->
+    <section class="page" id="p-estados">
+      <div class="ph"><h1>Estados</h1><p>Efeitos ativos sobre o personagem.</p></div>
+      <div class="bd">
+        <div><div class="bd-h buff"><h2>Buffs</h2><button class="btn ghost" data-a="bd-new" data-kind="buffs">Novo</button></div><div id="buff-list"></div></div>
+        <div><div class="bd-h debuff"><h2>Debuffs</h2><button class="btn ghost" data-a="bd-new" data-kind="debuffs">Novo</button></div><div id="debuff-list"></div></div>
+      </div>
+    </section>
+
+    <!-- HISTÓRICO -->
+    <section class="page" id="p-historico">
+      <div class="ph row"><div><h1>Histórico</h1><p>Cada alteração vira um ponto de volta. Restaure qualquer um.</p></div><button class="btn ghost" data-a="undo" id="btn-undo2"></button></div>
+      <div id="hist-list" class="hist"></div>
+      <div class="danger-zone"><button class="link" data-a="reset">Apagar ficha e recomeçar</button></div>
+    </section>
+  </main>
+</div>
+<script src="shared.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
